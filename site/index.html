@@ -46,6 +46,7 @@
       </p>
       <div class="cta">
         <a class="btn btn-primary" href="#start">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoFormsDesigner/releases/latest">Download the designer</a>
         <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoForms">Browse the source</a>
       </div>
     </div>
@@ -319,7 +320,13 @@
   <div class="wrap">
     <div class="section-head">
       <h2>Get started</h2>
-      <p>Go 1.23 or newer, plus the C toolchain and OpenGL headers Fyne needs on your platform.</p>
+      <p>
+        Go 1.23 or newer, plus the C toolchain and OpenGL headers Fyne needs on
+        your platform. On Debian or Ubuntu that is
+        <code translate="no">gcc pkg-config libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev</code>.
+        Windows, Linux and macOS are all first-class — CI builds and tests
+        every commit on all three.
+      </p>
     </div>
 
     <div class="split">
@@ -335,12 +342,17 @@ git clone git@github.com:Go-Forms/GoFormsShowcase.git
 
       <figure class="code">
         <figcaption>Install the designer</figcaption>
-<pre translate="no"><span class="c"># From a release .vsix:</span>
-code --install-extension goforms-designer.vsix
+<pre translate="no"><span class="c"># Grab the .vsix from the latest release, then:</span>
+code --install-extension goforms-designer-0.7.1.vsix
 
 <span class="c"># Then, in VS Code:</span>
 <span class="c">#   Ctrl+Shift+P -> "GoForms: Create New Project..."</span>
-<span class="c"># and open any *-designer.go file to get the canvas.</span></pre>
+<span class="c"># and open any *-designer.go file to get the canvas.</span>
+
+<span class="c"># If it cannot find your Go toolchain - a GUI editor</span>
+<span class="c"># does not see the PATH your shell builds - run</span>
+<span class="c"># "GoForms: Check Setup", or set it once:</span>
+<span class="c">#   "goforms.goPath": "/usr/local/go/bin/go"</span></pre>
       </figure>
     </div>
 
