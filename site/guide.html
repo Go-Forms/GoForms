@@ -1237,21 +1237,28 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   <tbody>
     <tr><td>Drag a control</td><td>Moves it. Edges snap to siblings' left, right and centre, with a guide line drawn where they line up.</td></tr>
     <tr><td>Drag the corner handle</td><td>Resizes it. The handle appears on the selected control only.</td></tr>
-    <tr><td>Drag the canvas's corner handle</td><td>Resizes the form.</td></tr>
+    <tr><td>Drag the form's right or bottom edge</td><td>Changes its width or its height. An edge grip moves only its own axis.</td></tr>
+    <tr><td>Drag the form's corner</td><td>Changes both at once.</td></tr>
     <tr><td><kbd>Ctrl</kbd> or <kbd>Shift</kbd> click</td><td>Extends the selection. Dragging any member then moves the whole group.</td></tr>
-    <tr><td>Click the canvas background</td><td>Selects the form itself — its title and size appear in the properties panel.</td></tr>
+    <tr><td>Click the form's background or title bar, click beside the form, or press <kbd>Escape</kbd></td><td>Selects the form itself — its title and size appear in the properties panel.</td></tr>
     <tr><td>Drag from the toolbox</td><td>Adds a control. Drop it on a container to make it a child of that container.</td></tr>
   </tbody>
 </table>
 </div>
 
 <div class="note">
-  <span class="note-title">Two ways to resize the form</span>
+  <span class="note-title">Escape is the reliable way back to the form</span>
   <p>
-    The canvas handle is convenient when the whole form fits on screen. When
-    it does not, click the canvas background and type the numbers into
-    <strong>Width</strong> and <strong>Height</strong> instead — the handle
-    would be past the scroll.
+    Clicking the background works only when there is background left to click,
+    and a form filled edge to edge by a docked control has none.
+    <kbd>Escape</kbd> needs nowhere to click, so it works on any form. While
+    you are typing in a property field it is left to the field, as you would
+    expect.
+  </p>
+  <p>
+    On a form larger than the visible canvas the grips sit past the scroll.
+    Select the form and type into <strong>Width</strong> and
+    <strong>Height</strong> instead.
   </p>
 </div>
 
@@ -1368,6 +1375,7 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo.</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo.</td></tr>
     <tr><td><kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click</td><td>Extends the selection.</td></tr>
+    <tr><td><kbd>Escape</kbd></td><td>Selects the form, leaving a control's properties.</td></tr>
   </tbody>
 </table>
 </div>
