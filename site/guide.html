@@ -1,0 +1,1647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GoForms Guide — forms, dialogs, layout and the designer</title>
+<meta name="description" content="The complete GoForms guide: moving between forms, modal and custom dialogs, swapping views inside one window, the UI-thread rule, layout, events, and every designer command.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img src="assets/logo.svg" alt="">
+      <span>GoForms</span>
+    </a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="guide.html">Guide</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Reference</a>
+      <a href="https://github.com/Go-Forms">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap doc-shell">
+
+<aside class="doc-nav">
+  <strong>Start</strong>
+  <a href="#install">Installing</a>
+  <a href="#anatomy">Anatomy of a form</a>
+  <a href="#lifecycle">Lifecycle and events</a>
+  <a href="#ui-thread">The UI-thread rule</a>
+
+  <strong>Moving between forms</strong>
+  <a href="#modeless">Opening another form</a>
+  <a href="#modal">Modal forms and results</a>
+  <a href="#custom-dialog">Writing your own dialog</a>
+  <a href="#passing-data">Passing data both ways</a>
+  <a href="#swap-in-place">Swapping views in one window</a>
+  <a href="#closing">Closing, cancelling, confirming</a>
+
+  <strong>Dialogs you get free</strong>
+  <a href="#messagebox">Message and input boxes</a>
+  <a href="#filedialogs">Files, folders, colours</a>
+
+  <strong>Building the UI</strong>
+  <a href="#layout">Position, dock, anchor</a>
+  <a href="#panels">Layout panels</a>
+  <a href="#controls">The control catalogue</a>
+  <a href="#menus">Menus, toolbars, status bars</a>
+  <a href="#timer">Timers and background work</a>
+
+  <strong>The designer</strong>
+  <a href="#designer-basics">Canvas and selection</a>
+  <a href="#designer-props">Properties and events</a>
+  <a href="#designer-commands">Commands and shortcuts</a>
+  <a href="#designer-tidy">What tidy removes</a>
+  <a href="#designer-limits">What it will not touch</a>
+
+  <strong>Reference</strong>
+  <a href="#csharp-map">C# to Go, side by side</a>
+  <a href="#gotchas">Traps worth knowing</a>
+</aside>
+
+<main class="doc-body">
+
+<h1>The GoForms guide</h1>
+<p class="lead">
+  Everything that is not obvious from the API: how forms reach each other, how
+  a dialog returns an answer, which goroutine you are on, what the designer
+  will and will not rewrite — and the handful of traps that are worth knowing
+  before you hit them.
+</p>
+
+<!-- ================================================================== -->
+<section id="install">
+<h2>Installing</h2>
+
+<p>
+  GoForms is a normal Go module. Nothing needs vendoring and nothing needs a
+  <code translate="no">replace</code> directive:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">terminal</figcaption>
+<pre translate="no">go get github.com/Go-Forms/GoForms</pre>
+</figure>
+
+<p>
+  The module path and the package name differ, which is normal in Go and worth
+  seeing once: the <em>path</em> is
+  <code translate="no">github.com/Go-Forms/GoForms</code>, and it binds the
+  <em>name</em> <code translate="no">goforms</code>. No alias is needed.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">main.go</figcaption>
+<pre translate="no"><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+	<span class="c">// The id is the application identity the OS uses; any reverse-DNS</span>
+	<span class="c">// string you own is fine. Call this before anything else.</span>
+	<span class="f">goforms.NewApplication</span>(<span class="s">"com.example.myapp"</span>)
+
+	<span class="f">goforms.Run</span>(<span class="f">mainform.NewMainForm</span>().Form)
+}</pre>
+</figure>
+
+<p>
+  Rendering is done by <a href="https://fyne.io">Fyne</a>, which is CGo, so a
+  build needs a C compiler and your platform's OpenGL headers. On Debian or
+  Ubuntu:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">terminal</figcaption>
+<pre translate="no">sudo apt-get install gcc pkg-config libgl1-mesa-dev xorg-dev \
+                     libxkbcommon-dev libwayland-dev</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">Why libwayland-dev</span>
+  <p>
+    Fyne compiles its Wayland path by default on Linux and reaches it through
+    <code translate="no">#cgo pkg-config: wayland-client</code>. Leaving it out
+    fails the build with a pkg-config error that mentions neither Fyne nor
+    Wayland in its first line.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="anatomy">
+<h2>Anatomy of a form</h2>
+
+<p>
+  A form is two files, exactly as a WinForms form is
+  <code translate="no">Form1.cs</code> plus
+  <code translate="no">Form1.Designer.cs</code>. The split is a convention the
+  designer relies on, not something the framework enforces — but keeping to it
+  is what lets you drag controls around without the designer ever touching
+  your code.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>File</th><th>Holds</th><th>Written by</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code translate="no">MainForm-designer.go</code></td>
+      <td>The struct's fields, one per control, and <code translate="no">initializeComponent()</code> — construction, bounds, properties, event wiring.</td>
+      <td>The designer. Editable by hand, but expect it to be reformatted.</td>
+    </tr>
+    <tr>
+      <td><code translate="no">MainForm.go</code></td>
+      <td>Handler bodies and everything else you write.</td>
+      <td>You. The designer only ever appends a stub to it.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no"><span class="k">package</span> mainform
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	btnGreet *<span class="t">goforms.Button</span>
+}
+
+<span class="k">func</span> <span class="f">NewMainForm</span>() *<span class="t">MainForm</span> {
+	mf := &amp;<span class="t">MainForm</span>{Form: <span class="f">goforms.NewForm</span>(<span class="s">"Main"</span>, <span class="n">400</span>, <span class="n">300</span>)}
+	mf.<span class="f">initializeComponent</span>()
+	<span class="k">return</span> mf
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">initializeComponent</span>() {
+	mf.<span class="f">SetClientSize</span>(<span class="n">400</span>, <span class="n">300</span>)
+
+	mf.btnGreet = <span class="f">goforms.NewButton</span>(<span class="s">"Greet"</span>)
+	mf.btnGreet.<span class="f">SetBounds</span>(<span class="n">20</span>, <span class="n">20</span>, <span class="n">100</span>, <span class="n">30</span>)
+	mf.btnGreet.Click.<span class="f">Handle</span>(mf.btnGreet_Click)
+	mf.<span class="f">AddControl</span>(mf.btnGreet)
+}</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Form1.Designer.cs — the same thing</figcaption>
+<pre translate="no"><span class="k">namespace</span> MyApp;
+
+<span class="k">partial class</span> <span class="t">MainForm</span>
+{
+    <span class="k">private</span> <span class="t">Button</span> btnGreet;
+
+    <span class="k">private void</span> <span class="f">InitializeComponent</span>()
+    {
+        <span class="k">this</span>.ClientSize = <span class="k">new</span> <span class="t">Size</span>(<span class="n">400</span>, <span class="n">300</span>);
+
+        <span class="k">this</span>.btnGreet = <span class="k">new</span> <span class="t">Button</span>();
+        <span class="k">this</span>.btnGreet.Text = <span class="s">"Greet"</span>;
+        <span class="k">this</span>.btnGreet.Location = <span class="k">new</span> <span class="t">Point</span>(<span class="n">20</span>, <span class="n">20</span>);
+        <span class="k">this</span>.btnGreet.Size = <span class="k">new</span> <span class="t">Size</span>(<span class="n">100</span>, <span class="n">30</span>);
+        <span class="k">this</span>.btnGreet.Click += <span class="k">this</span>.btnGreet_Click;
+        <span class="k">this</span>.Controls.<span class="f">Add</span>(<span class="k">this</span>.btnGreet);
+    }
+}</pre>
+  </figure>
+</div>
+
+<p>
+  Three differences are worth naming, because they are the ones that keep
+  catching people:
+</p>
+
+<ul>
+  <li>
+    <strong>Embedding, not inheritance.</strong>
+    <code translate="no">*goforms.Form</code> is embedded, so
+    <code translate="no">mf.Show()</code>,
+    <code translate="no">mf.Close()</code> and the form's events are promoted
+    onto your type. Where C# would pass <code translate="no">this</code>, Go
+    passes <code translate="no">mf.Form</code>.
+  </li>
+  <li>
+    <strong>One call sets the rectangle.</strong>
+    <code translate="no">SetBounds(x, y, w, h)</code> instead of separate
+    <code translate="no">Location</code> and <code translate="no">Size</code>.
+  </li>
+  <li>
+    <strong><code translate="no">.Handle(…)</code> is <code translate="no">+=</code>.</strong>
+    Events are multicast: calling it twice runs the handler twice.
+  </li>
+</ul>
+</section>
+
+<!-- ================================================================== -->
+<section id="lifecycle">
+<h2>Lifecycle and events</h2>
+
+<p>
+  A form raises four events. They fire in this order, and
+  <code translate="no">Load</code> fires <em>once</em> — hiding a form and
+  showing it again does not raise it a second time, which is what WinForms
+  does too.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Event</th><th>Argument</th><th>Fires</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">Load</code></td><td><code translate="no">EventArgs</code></td><td>Once, the first time the form is shown. Fill lists and set initial state here, not in the constructor.</td></tr>
+    <tr><td><code translate="no">Resize</code></td><td><code translate="no">EventArgs</code></td><td>Every time the window's size changes. Read the new size with <code translate="no">ClientSize()</code>.</td></tr>
+    <tr><td><code translate="no">Closing</code></td><td><code translate="no">*CancelEventArgs</code></td><td>Before the window goes away — from the X button, <kbd>Alt</kbd>+<kbd>F4</kbd>, or a <code translate="no">Close()</code> call alike. Set <code translate="no">e.Cancel = true</code> to veto.</td></tr>
+    <tr><td><code translate="no">Closed</code></td><td><code translate="no">EventArgs</code></td><td>After the window is gone. This is where you drop your reference to the form.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Closing takes a pointer</span>
+  <p>
+    <code translate="no">Closing</code> is
+    <code translate="no">Event[*CancelEventArgs]</code>, not
+    <code translate="no">Event[CancelEventArgs]</code>. It has to be a pointer,
+    because the whole point is that your handler writes
+    <code translate="no">e.Cancel</code> and the framework reads it back. A
+    handler declared with a value receiver would compile against the wrong
+    event type and simply never be called.
+  </p>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.cboCountry.<span class="f">SetItems</span>(<span class="f">loadCountries</span>())
+	mf.cboCountry.<span class="f">SetSelectedIndex</span>(<span class="n">0</span>)
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Closing</span>(sender <span class="k">any</span>, e *<span class="t">goforms.CancelEventArgs</span>) {
+	<span class="k">if</span> mf.dirty {
+		e.Cancel = <span class="k">true</span>
+		<span class="f">goforms.ShowMessageBox</span>(mf.Form,
+			<span class="s">"Save your changes first."</span>, <span class="s">"Unsaved work"</span>,
+			goforms.MessageBoxOK, goforms.MessageBoxWarning, <span class="k">nil</span>)
+	}
+}</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="ui-thread">
+<h2>The UI-thread rule</h2>
+
+<p>
+  This is the single most important thing on the page. Read it before writing
+  any handler that waits for something.
+</p>
+
+<p>
+  Every event handler runs on <strong>the UI goroutine</strong> — the one
+  goroutine that draws. While your handler is running, nothing repaints and no
+  input is processed. Two rules follow, and breaking either produces a frozen
+  window rather than an error message.
+</p>
+
+<h3>1. Never block inside a handler</h3>
+
+<p>
+  Anything that waits — an HTTP call, a database query, a
+  <code translate="no">time.Sleep</code>, and in particular
+  <code translate="no">ShowDialog()</code> — must run on a goroutine you start
+  yourself.
+</p>
+
+<h3>2. Come back through <code translate="no">fyne.Do</code></h3>
+
+<p>
+  Once you are off the UI goroutine you may not touch controls. Hop back with
+  <code translate="no">fyne.Do</code>, which queues a function to run on the UI
+  goroutine.
+</p>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">Wrong — freezes the window</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnLoad_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	<span class="c">// Blocks the goroutine that has to draw the</span>
+	<span class="c">// spinner, so nothing is ever drawn.</span>
+	rows := <span class="f">fetchFromServer</span>()
+	mf.grid.<span class="f">SetRows</span>(rows)
+}</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Right</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnLoad_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	mf.status.<span class="f">SetText</span>(<span class="s">"Loading…"</span>)
+
+	<span class="k">go func</span>() {
+		rows := <span class="f">fetchFromServer</span>()  <span class="c">// off the UI thread</span>
+
+		<span class="f">fyne.Do</span>(<span class="k">func</span>() {          <span class="c">// back onto it</span>
+			mf.grid.<span class="f">SetRows</span>(rows)
+			mf.status.<span class="f">SetText</span>(<span class="s">"Ready"</span>)
+		})
+	}()
+}</pre>
+  </figure>
+</div>
+
+<p>
+  <code translate="no">fyne.Do</code> comes from
+  <code translate="no">fyne.io/fyne/v2</code>, so a file that uses it imports
+  Fyne directly. That is the one place GoForms does not hide it, because the
+  thread it queues onto is Fyne's.
+</p>
+
+<div class="note warn">
+  <span class="note-title">The symptom</span>
+  <p>
+    A handler that blocks does not crash and logs nothing. The window stops
+    repainting — it goes white or keeps its last frame — and the OS eventually
+    offers to kill it. If a form freezes the moment you click something, look
+    at that click handler first.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="modeless">
+<h2>Opening another form</h2>
+
+<p>
+  A non-modal form is <code translate="no">Show()</code>. The one thing that
+  needs care is the reference: nothing else holds the form alive, and nothing
+  stops you opening a second copy of it.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="c">// A field on the form, not a local: a local would go out of scope the</span>
+<span class="c">// moment the handler returned, and clicking the button twice would open</span>
+<span class="c">// two windows on top of each other.</span>
+<span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	<span class="c">// ... designer fields ...</span>
+	settings *<span class="t">settingsform.SettingsForm</span>
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnSettings_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	<span class="k">if</span> mf.settings == <span class="k">nil</span> {
+		mf.settings = <span class="f">settingsform.NewSettingsForm</span>()
+
+		<span class="c">// Clearing the field on Closed is what makes the next click</span>
+		<span class="c">// open a fresh window instead of trying to show a closed one.</span>
+		mf.settings.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+			mf.settings = <span class="k">nil</span>
+		})
+	}
+	mf.settings.<span class="f">Show</span>()
+}</pre>
+</figure>
+
+<p>
+  Calling <code translate="no">Show()</code> on a form that is already visible
+  brings it forward, so the guard above gives you "open it, or focus the one
+  already open" — the behaviour people expect from a Tools menu.
+</p>
+
+<h3>Hide instead of close, when reopening should be cheap</h3>
+
+<p>
+  <code translate="no">Hide()</code> keeps the form and its state alive;
+  <code translate="no">Close()</code> destroys the window.
+  <code translate="no">Load</code> will not fire again after a hide, so a form
+  you hide and re-show keeps everything the user typed into it.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="modal">
+<h2>Modal forms and results</h2>
+
+<p>
+  <code translate="no">ShowDialog()</code> blocks until the form closes and
+  returns its <code translate="no">DialogResult</code> — the same shape as
+  WinForms. The difference that matters is <em>where</em> you may call it.
+</p>
+
+<div class="note warn">
+  <span class="note-title">Always from a goroutine</span>
+  <p>
+    <code translate="no">ShowDialog()</code> blocks the goroutine it is called
+    on. Called from a click handler, that is the UI goroutine — the one that
+    has to draw the dialog you are waiting for. The application deadlocks
+    against itself, with the dialog never appearing.
+  </p>
+</div>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">C#</figcaption>
+<pre translate="no"><span class="k">private void</span> <span class="f">btnAbout_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
+{
+    <span class="k">using var</span> dlg = <span class="k">new</span> <span class="t">AboutForm</span>();
+
+    <span class="k">if</span> (dlg.<span class="f">ShowDialog</span>(<span class="k">this</span>) == DialogResult.OK)
+    {
+        <span class="f">ApplyChanges</span>();
+    }
+}</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnAbout_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	<span class="k">go func</span>() {
+		dlg := <span class="f">aboutform.NewAboutForm</span>()
+		result := dlg.<span class="f">ShowDialog</span>()   <span class="c">// blocks here</span>
+
+		<span class="k">if</span> result == goforms.DialogOK {
+			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyChanges</span>() })
+		}
+	}()
+}</pre>
+  </figure>
+</div>
+
+<p>
+  The five results are
+  <code translate="no">DialogNone</code>,
+  <code translate="no">DialogOK</code>,
+  <code translate="no">DialogCancel</code>,
+  <code translate="no">DialogYes</code> and
+  <code translate="no">DialogNo</code>.
+  A form closed with the X button or <code translate="no">Close()</code>
+  returns <code translate="no">DialogNone</code>, which is how you tell "the
+  user dismissed it" from "the user chose Cancel".
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="custom-dialog">
+<h2>Writing your own dialog</h2>
+
+<p>
+  There is no separate dialog type. A dialog is a form whose buttons call
+  <code translate="no">CloseWithResult</code> instead of
+  <code translate="no">Close</code> — that is the whole mechanism. Build it in
+  the designer like any other form.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">ConfirmForm-designer.go — built in the designer</figcaption>
+<pre translate="no"><span class="k">type</span> <span class="t">ConfirmForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	lblMessage *<span class="t">goforms.Label</span>
+	btnOK      *<span class="t">goforms.Button</span>
+	btnCancel  *<span class="t">goforms.Button</span>
+}
+
+<span class="k">func</span> <span class="f">NewConfirmForm</span>() *<span class="t">ConfirmForm</span> {
+	f := &amp;<span class="t">ConfirmForm</span>{Form: <span class="f">goforms.NewForm</span>(<span class="s">"Confirm"</span>, <span class="n">360</span>, <span class="n">150</span>)}
+	f.<span class="f">initializeComponent</span>()
+	<span class="k">return</span> f
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">ConfirmForm.go — the two lines that make it a dialog</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ConfirmForm</span>) <span class="f">btnOK_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.<span class="f">CloseWithResult</span>(goforms.DialogOK)
+}
+
+<span class="k">func</span> (f *<span class="t">ConfirmForm</span>) <span class="f">btnCancel_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.<span class="f">CloseWithResult</span>(goforms.DialogCancel)
+}</pre>
+</figure>
+
+<p>
+  <code translate="no">CloseWithResult</code> records the result and then goes
+  through the same path as an ordinary close — so
+  <code translate="no">Closing</code> still gets its chance to veto, and a
+  cancelled close leaves the dialog open with no result recorded.
+</p>
+
+<h3>Make it feel like a dialog</h3>
+
+<p>
+  Three optional touches, all on the form itself, that separate a dialog from
+  a window that happens to be small:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">ConfirmForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ConfirmForm</span>) <span class="f">ConfirmForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	f.<span class="f">SetFixedSize</span>(<span class="k">true</span>)      <span class="c">// no resize grip</span>
+	f.<span class="f">CenterOnScreen</span>()        <span class="c">// ShowDialog does this too</span>
+	f.btnOK.<span class="f">SetAnchor</span>(goforms.AnchorBottom | goforms.AnchorRight)
+}</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="passing-data">
+<h2>Passing data both ways</h2>
+
+<p>
+  <code translate="no">ShowDialog</code> returns only a
+  <code translate="no">DialogResult</code>. Anything richer travels on the
+  dialog's own struct — which is the same thing C# does with a public property,
+  and is why the constructor and the fields are yours to add.
+</p>
+
+<h4>In: a constructor argument</h4>
+
+<figure class="code">
+  <figcaption translate="no">EditCustomerForm.go</figcaption>
+<pre translate="no"><span class="c">// The generated NewEditCustomerForm() takes nothing. Add your own</span>
+<span class="c">// constructor beside it rather than editing the designer file, which</span>
+<span class="c">// the designer regenerates.</span>
+<span class="k">func</span> <span class="f">NewEditCustomerFormFor</span>(c <span class="t">Customer</span>) *<span class="t">EditCustomerForm</span> {
+	f := <span class="f">NewEditCustomerForm</span>()
+	f.customer = c
+	f.txtName.<span class="f">SetText</span>(c.Name)
+	f.txtEmail.<span class="f">SetText</span>(c.Email)
+	<span class="k">return</span> f
+}</pre>
+</figure>
+
+<h4>Out: a field the caller reads after it closes</h4>
+
+<figure class="code">
+  <figcaption translate="no">EditCustomerForm.go</figcaption>
+<pre translate="no"><span class="k">type</span> <span class="t">EditCustomerForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	<span class="c">// ... designer fields ...</span>
+
+	<span class="c">// Result is what the caller reads once ShowDialog returns OK. It is</span>
+	<span class="c">// safe to read then, and only then: ShowDialog does not return until</span>
+	<span class="c">// the form has closed, so nothing is still writing to it.</span>
+	Result <span class="t">Customer</span>
+}
+
+<span class="k">func</span> (f *<span class="t">EditCustomerForm</span>) <span class="f">btnSave_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.Result = <span class="t">Customer</span>{
+		Name:  f.txtName.<span class="f">Text</span>(),
+		Email: f.txtEmail.<span class="f">Text</span>(),
+	}
+	f.<span class="f">CloseWithResult</span>(goforms.DialogOK)
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go — the caller</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnEdit_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	selected := mf.<span class="f">selectedCustomer</span>()
+
+	<span class="k">go func</span>() {
+		dlg := <span class="f">NewEditCustomerFormFor</span>(selected)
+
+		<span class="k">if</span> dlg.<span class="f">ShowDialog</span>() == goforms.DialogOK {
+			saved := dlg.Result
+			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyCustomer</span>(saved) })
+		}
+	}()
+}</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">Read the field before fyne.Do, not inside it</span>
+  <p>
+    <code translate="no">saved := dlg.Result</code> happens on the goroutine
+    that owns <code translate="no">dlg</code>, and the copy is what crosses to
+    the UI goroutine. Reading <code translate="no">dlg.Result</code> from
+    inside the closure would be a second goroutine touching the dialog's
+    memory — harmless in practice here, but exactly the shape
+    <code translate="no">go test -race</code> is built to complain about.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="swap-in-place">
+<h2>Swapping views inside one window</h2>
+
+<p>
+  Sometimes you do not want a second window at all — you want the window's
+  contents replaced, the way a wizard or a settings app moves between pages.
+  <code translate="no">ViewContainer</code> is that: a
+  <code translate="no">TabControl</code> whose tab strip can be hidden, so
+  <em>you</em> decide what switches pages.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">ShellForm-designer.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">initializeComponent</span>() {
+	f.<span class="f">SetClientSize</span>(<span class="n">900</span>, <span class="n">600</span>)
+
+	f.views = <span class="f">goforms.NewViewContainer</span>(<span class="n">900</span>, <span class="n">560</span>)
+	f.views.<span class="f">SetBounds</span>(<span class="n">0</span>, <span class="n">40</span>, <span class="n">900</span>, <span class="n">560</span>)
+	f.views.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorLeft |
+		goforms.AnchorRight | goforms.AnchorBottom)
+
+	<span class="c">// TabsHidden makes it a plain page stack: the pages are still</span>
+	<span class="c">// there, but nothing draws a strip the user could click.</span>
+	f.views.<span class="f">SetTabAlignment</span>(goforms.TabsHidden)
+	f.<span class="f">AddControl</span>(f.views)
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">ShellForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">ShellForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	<span class="c">// Each page is a container: put controls on it exactly as you</span>
+	<span class="c">// would on a Panel.</span>
+	welcome := f.views.<span class="f">AddPage</span>(<span class="s">"Welcome"</span>)
+	details := f.views.<span class="f">AddPage</span>(<span class="s">"Details"</span>)
+	f.views.<span class="f">AddPage</span>(<span class="s">"Done"</span>)
+
+	lbl := <span class="f">goforms.NewLabel</span>(<span class="s">"Step one of three."</span>)
+	lbl.<span class="f">SetBounds</span>(<span class="n">24</span>, <span class="n">24</span>, <span class="n">400</span>, <span class="n">24</span>)
+	welcome.<span class="f">AddControl</span>(lbl)
+
+	f.txtName = <span class="f">goforms.NewTextBox</span>()
+	f.txtName.<span class="f">SetBounds</span>(<span class="n">24</span>, <span class="n">24</span>, <span class="n">300</span>, <span class="n">30</span>)
+	details.<span class="f">AddControl</span>(f.txtName)
+
+	f.views.<span class="f">SetSelectedIndex</span>(<span class="n">0</span>)
+}
+
+<span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">btnNext_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.views.<span class="f">SelectNext</span>()
+}
+
+<span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">btnBack_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.views.<span class="f">SelectPrevious</span>()
+}</pre>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Method</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">AddPage(title)</code></td><td>Adds a page and returns it. The returned <code translate="no">*ViewPage</code> takes children like a Panel.</td></tr>
+    <tr><td><code translate="no">SetSelectedIndex(i)</code></td><td>Switches to a page by index.</td></tr>
+    <tr><td><code translate="no">SelectNext()</code> / <code translate="no">SelectPrevious()</code></td><td>Steps through, for wizard buttons.</td></tr>
+    <tr><td><code translate="no">SelectedPage()</code> / <code translate="no">SelectedIndex()</code></td><td>Reads the current page.</td></tr>
+    <tr><td><code translate="no">SetTabAlignment(a)</code></td><td><code translate="no">TabsTop</code>, <code translate="no">TabsBottom</code>, <code translate="no">TabsLeft</code>, <code translate="no">TabsRight</code>, <code translate="no">TabsHidden</code>. Left and right give you a sidebar navigation for free.</td></tr>
+    <tr><td><code translate="no">SelectedIndexChanged</code></td><td>Fires for a tab click <em>and</em> for <code translate="no">SetSelectedIndex</code>, so code driving it from your own buttons sees the same event.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Which of the three approaches to use</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>You want</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>A tool window the user keeps open beside the main one</td><td>A second form, <code translate="no">Show()</code></td></tr>
+    <tr><td>An answer before anything else can happen</td><td>A second form, <code translate="no">ShowDialog()</code> on a goroutine</td></tr>
+    <tr><td>The same window showing something else</td><td><code translate="no">ViewContainer</code> with <code translate="no">TabsHidden</code></td></tr>
+    <tr><td>Pages the user picks between themselves</td><td><code translate="no">TabControl</code>, or <code translate="no">ViewContainer</code> with a visible strip</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="closing">
+<h2>Closing, cancelling, confirming</h2>
+
+<p>
+  Every route out of a form — the X button, <kbd>Alt</kbd>+<kbd>F4</kbd>,
+  <code translate="no">Close()</code>,
+  <code translate="no">CloseWithResult()</code> — goes through
+  <code translate="no">Closing</code> first. One handler covers them all.
+</p>
+
+<p>
+  Confirming a close is the case that catches people, because the obvious
+  version does not work: you cannot ask the user inside
+  <code translate="no">Closing</code> and wait for the answer — waiting there
+  is waiting on the UI goroutine. Veto first, ask afterwards, and close again
+  once you know.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">EditorForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">EditorForm</span>) <span class="f">EditorForm_Closing</span>(sender <span class="k">any</span>, e *<span class="t">goforms.CancelEventArgs</span>) {
+	<span class="k">if</span> !f.dirty || f.confirmed {
+		<span class="k">return</span> <span class="c">// nothing to lose, or the user already said yes</span>
+	}
+
+	<span class="c">// Stop this close, then ask. ShowMessageBox does not block - it</span>
+	<span class="c">// reports through the callback - so this handler returns at once</span>
+	<span class="c">// and the UI keeps running while the box is up.</span>
+	e.Cancel = <span class="k">true</span>
+
+	<span class="f">goforms.ShowMessageBox</span>(f.Form,
+		<span class="s">"Discard your changes?"</span>, <span class="s">"Unsaved work"</span>,
+		goforms.MessageBoxYesNo, goforms.MessageBoxQuestion,
+		<span class="k">func</span>(r <span class="t">goforms.DialogResult</span>) {
+			<span class="k">if</span> r == goforms.DialogYes {
+				f.confirmed = <span class="k">true</span>
+				f.<span class="f">Close</span>() <span class="c">// this time Closing lets it through</span>
+			}
+		})
+}</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">Why a flag rather than unhooking the handler</span>
+  <p>
+    <code translate="no">Event[T]</code> has no <code translate="no">-=</code>:
+    handlers can be added but not removed. A boolean the handler checks is the
+    idiom, and it reads more honestly anyway — "the user has already confirmed"
+    is a fact about the form, not about the event.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="messagebox">
+<h2>Message and input boxes</h2>
+
+<p>
+  These are the built-ins, and they share one property that differs from
+  WinForms: <strong>none of them block</strong>. They report through a
+  callback instead, which is what lets you call them straight from a click
+  handler without freezing anything.
+</p>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">C# — returns a result</figcaption>
+<pre translate="no"><span class="k">var</span> r = <span class="t">MessageBox</span>.<span class="f">Show</span>(<span class="k">this</span>,
+    <span class="s">"Delete this row?"</span>, <span class="s">"Confirm"</span>,
+    MessageBoxButtons.YesNo,
+    MessageBoxIcon.Question);
+
+<span class="k">if</span> (r == DialogResult.Yes)
+    <span class="f">DeleteRow</span>();</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Go — reports through a callback</figcaption>
+<pre translate="no"><span class="f">goforms.ShowMessageBox</span>(mf.Form,
+	<span class="s">"Delete this row?"</span>, <span class="s">"Confirm"</span>,
+	goforms.MessageBoxYesNo,
+	goforms.MessageBoxQuestion,
+	<span class="k">func</span>(r <span class="t">goforms.DialogResult</span>) {
+		<span class="k">if</span> r == goforms.DialogYes {
+			mf.<span class="f">deleteRow</span>()
+		}
+	})</pre>
+  </figure>
+</div>
+
+<p>
+  The callback already runs on the UI goroutine, so it may touch controls
+  directly — no <code translate="no">fyne.Do</code> needed. Pass
+  <code translate="no">nil</code> when you do not care about the answer.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Argument</th><th>Values</th></tr></thead>
+  <tbody>
+    <tr><td>Buttons</td><td><code translate="no">MessageBoxOK</code>, <code translate="no">MessageBoxOKCancel</code>, <code translate="no">MessageBoxYesNo</code></td></tr>
+    <tr><td>Icon</td><td><code translate="no">MessageBoxNone</code>, <code translate="no">MessageBoxInformation</code>, <code translate="no">MessageBoxWarning</code>, <code translate="no">MessageBoxError</code>, <code translate="no">MessageBoxQuestion</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Asking for a line of text</h3>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="f">goforms.ShowInputBox</span>(mf.Form, <span class="s">"New folder"</span>, <span class="s">"Name:"</span>,
+	<span class="k">func</span>(text <span class="k">string</span>, ok <span class="k">bool</span>) {
+		<span class="k">if</span> ok &amp;&amp; text != <span class="s">""</span> {
+			mf.<span class="f">createFolder</span>(text)
+		}
+	})</pre>
+</figure>
+
+<p>
+  <code translate="no">ok</code> is false when the user cancelled, which is
+  not the same as an empty string — check both if an empty name means
+  something to you.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="filedialogs">
+<h2>Files, folders, colours</h2>
+
+<p>
+  The file dialogs are objects you configure and then show, mirroring
+  <code translate="no">OpenFileDialog</code> and friends. Like the message box,
+  they answer through a callback.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnOpen_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	dlg := <span class="f">goforms.NewOpenFileDialog</span>()
+	dlg.Title = <span class="s">"Open a report"</span>
+	dlg.Filter = <span class="t">goforms.FileDialogFilter</span>{
+		Description: <span class="s">"CSV files"</span>,
+		Extensions:  []<span class="k">string</span>{<span class="s">".csv"</span>},
+	}
+
+	dlg.<span class="f">Show</span>(mf.Form, <span class="k">func</span>(path <span class="k">string</span>, ok <span class="k">bool</span>) {
+		<span class="k">if</span> !ok {
+			<span class="k">return</span>
+		}
+		<span class="c">// ReadAll reads whatever the dialog last returned, so the</span>
+		<span class="c">// file does not have to be reopened by path.</span>
+		data, err := dlg.<span class="f">ReadAll</span>()
+		<span class="k">if</span> err != <span class="k">nil</span> {
+			<span class="f">goforms.ShowMessageBox</span>(mf.Form, err.<span class="f">Error</span>(), <span class="s">"Could not read"</span>,
+				goforms.MessageBoxOK, goforms.MessageBoxError, <span class="k">nil</span>)
+			<span class="k">return</span>
+		}
+		mf.<span class="f">load</span>(data)
+	})
+}</pre>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Type</th><th>WinForms equivalent</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">NewOpenFileDialog()</code></td><td><code translate="no">OpenFileDialog</code></td><td><code translate="no">ReadAll()</code> reads the chosen file without reopening it.</td></tr>
+    <tr><td><code translate="no">NewSaveFileDialog()</code></td><td><code translate="no">SaveFileDialog</code></td><td><code translate="no">WriteAll(data)</code> writes to the chosen destination.</td></tr>
+    <tr><td><code translate="no">NewFolderBrowserDialog()</code></td><td><code translate="no">FolderBrowserDialog</code></td><td>Returns a directory path.</td></tr>
+    <tr><td><code translate="no">NewColorDialog()</code></td><td><code translate="no">ColorDialog</code></td><td><code translate="no">Show(parent, func(c goforms.Color))</code>.</td></tr>
+    <tr><td><code translate="no">NewColorPickerButton(text, parent)</code></td><td>—</td><td>A button that opens the colour dialog itself. In the designer's toolbox.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Sandboxed platforms return a handle, not a path</span>
+  <p>
+    Prefer <code translate="no">ReadAll</code> and
+    <code translate="no">WriteAll</code> over reopening the path yourself.
+    The path a sandboxed OS hands back is not always one your process is
+    allowed to open a second time.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="layout">
+<h2>Position, dock, anchor</h2>
+
+<p>
+  Every control has a rectangle, set in one call. Coordinates are relative to
+  whatever contains it: a control on a Panel is positioned from the panel's
+  top-left corner, not the form's.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">x, y, width, height</figcaption>
+<pre translate="no">btn.<span class="f">SetBounds</span>(<span class="n">20</span>, <span class="n">60</span>, <span class="n">100</span>, <span class="n">30</span>)</pre>
+</figure>
+
+<h3>Anchoring — what happens when the form is resized</h3>
+
+<p>
+  An anchor pins an edge of the control to the same edge of its parent. Pin
+  two opposite edges and the control stretches between them.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Anchor</th><th>Effect on resize</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">AnchorTop | AnchorLeft</code></td><td>Stays put. This is the default and the WinForms default.</td></tr>
+    <tr><td><code translate="no">AnchorTop | AnchorRight</code></td><td>Slides right with the edge. Toolbar buttons on the right.</td></tr>
+    <tr><td><code translate="no">AnchorLeft | AnchorRight</code></td><td>Stretches horizontally. Text boxes that should fill the form.</td></tr>
+    <tr><td>All four</td><td>Fills. What a grid or a log list wants.</td></tr>
+    <tr><td><code translate="no">AnchorNone</code></td><td>Keeps its distance from the centre — it floats.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Docking — glue it to an edge</h3>
+
+<p>
+  A docked control ignores its stored position entirely and takes an edge of
+  its parent, using the full width or height of whatever the other docked
+  siblings have left over.
+</p>
+
+<div class="note">
+  <span class="note-title">Order decides the corners</span>
+  <p>
+    Docking is applied in the order controls were added. Add the top slab
+    first and it takes the full width, leaving the sides shorter; add a side
+    first and it takes the full height instead. This is the same rule
+    WinForms uses, and it is why the designer draws docked controls where they
+    will actually be rather than where they were dropped.
+  </p>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">A classic shell layout</figcaption>
+<pre translate="no">f.toolbar.<span class="f">SetDock</span>(goforms.DockTop)     <span class="c">// full width, at the top</span>
+f.status.<span class="f">SetDock</span>(goforms.DockBottom)   <span class="c">// full width, at the bottom</span>
+f.tree.<span class="f">SetDock</span>(goforms.DockLeft)       <span class="c">// what is left, down the side</span>
+f.content.<span class="f">SetDock</span>(goforms.DockFill)    <span class="c">// everything remaining</span>
+
+f.<span class="f">AddControl</span>(f.toolbar)               <span class="c">// this order is the layout</span>
+f.<span class="f">AddControl</span>(f.status)
+f.<span class="f">AddControl</span>(f.tree)
+f.<span class="f">AddControl</span>(f.content)</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="panels">
+<h2>Layout panels</h2>
+
+<p>
+  When arithmetic gets tiresome, four containers do the work. All of them are
+  in the designer's toolbox, and all of them take children exactly as a Panel
+  does.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Panel</th><th>Arranges children</th><th>Key API</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code translate="no">FlowLayoutPanel</code></td>
+      <td>In a row or column, wrapping at the edge.</td>
+      <td><code translate="no">SetFlowDirection(FlowLeftToRight | FlowTopDown | FlowRightToLeft | FlowBottomUp)</code>, <code translate="no">SetWrapContents(bool)</code></td>
+    </tr>
+    <tr>
+      <td><code translate="no">TableLayoutPanel</code></td>
+      <td>On a grid, in the order added.</td>
+      <td><code translate="no">SetColumnStyle(i, Absolute(110) | Percent(40) | AutoSize())</code>, <code translate="no">SetRowStyle</code>, <code translate="no">AddControlSpanning(c, col, row, colSpan, rowSpan)</code></td>
+    </tr>
+    <tr>
+      <td><code translate="no">SplitContainer</code></td>
+      <td>In two halves with a draggable bar.</td>
+      <td><code translate="no">Panel1()</code>, <code translate="no">Panel2()</code> — both real containers — and <code translate="no">SetSplitterDistance(0.42)</code></td>
+    </tr>
+    <tr>
+      <td><code translate="no">ScrollBox</code></td>
+      <td>Unchanged, but scrolls if they overflow.</td>
+      <td>Add children as usual.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">A three-track table</figcaption>
+<pre translate="no">f.table.<span class="f">SetColumnStyle</span>(<span class="n">0</span>, <span class="f">goforms.Absolute</span>(<span class="n">110</span>)) <span class="c">// fixed 110px</span>
+f.table.<span class="f">SetColumnStyle</span>(<span class="n">1</span>, <span class="f">goforms.Percent</span>(<span class="n">40</span>))   <span class="c">// 40% of what is left</span>
+f.table.<span class="f">SetColumnStyle</span>(<span class="n">2</span>, <span class="f">goforms.AutoSize</span>())    <span class="c">// as wide as its content</span>
+
+f.table.<span class="f">AddControl</span>(cell)                       <span class="c">// fills cells in order</span>
+f.table.<span class="f">AddControlSpanning</span>(wide, <span class="n">0</span>, <span class="n">2</span>, <span class="n">3</span>, <span class="n">1</span>)      <span class="c">// col 0, row 2, 3 wide</span></pre>
+</figure>
+
+<div class="note warn">
+  <span class="note-title">SetColumnStyle is indexed — the designer knows this</span>
+  <p>
+    Calls like <code translate="no">SetColumnStyle(0, …)</code> and
+    <code translate="no">SetColumnStyle(1, …)</code> say different things, so
+    the designer's tidy pass leaves them alone. It only collapses setters that
+    take a single value, where a later call genuinely overrides an earlier one.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="controls">
+<h2>The control catalogue</h2>
+
+<p>
+  Thirty-four types, each named after the
+  <code translate="no">System.Windows.Forms</code> class it stands in for — so
+  the WinForms documentation you already know still applies to the names, the
+  properties and the events.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Group</th><th>Types</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Common</td>
+      <td><code translate="no">Label</code>, <code translate="no">Button</code>, <code translate="no">TextBox</code>, <code translate="no">MaskedTextBox</code>, <code translate="no">RichTextBox</code>, <code translate="no">CheckBox</code>, <code translate="no">RadioButton</code>, <code translate="no">ComboBox</code>, <code translate="no">ListBox</code>, <code translate="no">CheckedListBox</code>, <code translate="no">PictureBox</code>, <code translate="no">ProgressBar</code>, <code translate="no">TrackBar</code>, <code translate="no">ScrollBar</code>, <code translate="no">NumericUpDown</code>, <code translate="no">DomainUpDown</code>, <code translate="no">DateTimePicker</code>, <code translate="no">MonthCalendar</code>, <code translate="no">LinkLabel</code>, <code translate="no">ColorPickerButton</code></td>
+    </tr>
+    <tr>
+      <td>Containers</td>
+      <td><code translate="no">Panel</code>, <code translate="no">GroupBox</code>, <code translate="no">TabControl</code>, <code translate="no">SplitContainer</code>, <code translate="no">FlowLayoutPanel</code>, <code translate="no">TableLayoutPanel</code>, <code translate="no">ScrollBox</code>, <code translate="no">ViewContainer</code>, <code translate="no">Splitter</code></td>
+    </tr>
+    <tr>
+      <td>Menus &amp; toolbars</td>
+      <td><code translate="no">MenuStrip</code>, <code translate="no">ToolStrip</code>, <code translate="no">StatusStrip</code>, <code translate="no">ContextMenu</code></td>
+    </tr>
+    <tr>
+      <td>Data</td>
+      <td><code translate="no">DataGridView</code>, <code translate="no">ListView</code>, <code translate="no">TreeView</code></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Three constructors exist for text entry, because a WinForms
+  <code translate="no">TextBox</code> is three different widgets underneath:
+  <code translate="no">NewTextBox()</code>,
+  <code translate="no">NewMultilineTextBox()</code> and
+  <code translate="no">NewPasswordTextBox()</code>.
+</p>
+
+<h3>Events every control has</h3>
+
+<p>
+  On top of its own events, each control inherits the interaction set from
+  <code translate="no">Control</code>. The designer's Events panel draws a
+  divider between the two, so you can see which is which.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Event</th><th>Argument type</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">Click</code>, <code translate="no">DoubleClick</code>, <code translate="no">MouseDown</code>, <code translate="no">MouseUp</code>, <code translate="no">MouseMove</code>, <code translate="no">MouseWheel</code></td><td><code translate="no">MouseEventArgs</code></td></tr>
+    <tr><td><code translate="no">KeyDown</code>, <code translate="no">KeyUp</code></td><td><code translate="no">KeyEventArgs</code></td></tr>
+    <tr><td><code translate="no">KeyPress</code></td><td><code translate="no">KeyPressEventArgs</code></td></tr>
+    <tr><td><code translate="no">MouseEnter</code>, <code translate="no">MouseLeave</code>, <code translate="no">GotFocus</code>, <code translate="no">LostFocus</code>, <code translate="no">Resize</code>, <code translate="no">Move</code>, <code translate="no">VisibleChanged</code>, <code translate="no">EnabledChanged</code></td><td><code translate="no">EventArgs</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Getting the type wrong will not compile</span>
+  <p>
+    <code translate="no">Event[T].Handle</code> takes
+    <code translate="no">EventHandler[T]</code>, so a handler with the wrong
+    argument type is a compile error, not a handler that silently never runs.
+    Wire events from the designer and it picks the type for you.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="menus">
+<h2>Menus, toolbars, status bars</h2>
+
+<p>
+  A <code translate="no">MenuStrip</code> is the window's menu bar and is
+  attached to the form rather than added as a control. The other two are
+  ordinary controls you dock.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no"><span class="c">// Menu bar: built from menus and items, then handed to the window.</span>
+fileMenu := <span class="f">goforms.NewTopMenu</span>(<span class="s">"File"</span>,
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Open…"</span>),
+	<span class="f">goforms.NewMenuSeparator</span>(),
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Exit"</span>),
+)
+mf.<span class="f">SetMainMenu</span>(<span class="f">goforms.NewMenuStrip</span>(fileMenu))
+
+<span class="c">// Toolbar: a control, docked to the top. Each button carries a plain</span>
+<span class="c">// func() rather than an (sender, e) handler.</span>
+mf.toolbar = <span class="f">goforms.NewToolStrip</span>()
+mf.toolbar.<span class="f">SetDock</span>(goforms.DockTop)
+mf.toolbar.<span class="f">AddButton</span>(<span class="s">"New"</span>, mf.tsNew_Click)
+mf.toolbar.<span class="f">AddSeparator</span>()
+mf.toolbar.<span class="f">AddButton</span>(<span class="s">"Save"</span>, mf.tsSave_Click)
+mf.<span class="f">AddControl</span>(mf.toolbar)
+
+<span class="c">// Status bar: panels you set text on later.</span>
+mf.status = <span class="f">goforms.NewStatusStrip</span>(<span class="n">800</span>, <span class="n">24</span>)
+mf.status.<span class="f">SetDock</span>(goforms.DockBottom)
+mf.status.<span class="f">AddPanel</span>(<span class="s">"Ready"</span>)
+mf.status.<span class="f">AddPanel</span>(<span class="s">""</span>)
+mf.<span class="f">AddControl</span>(mf.status)</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">A ToolStrip button's handler has no arguments</span>
+  <p>
+    <code translate="no">AddButton(text, func())</code> takes a bare
+    <code translate="no">func()</code>, not the
+    <code translate="no">(sender, e)</code> shape every other event uses. The
+    designer knows, and generates a parameterless stub for these — which is
+    why you will see a handler with no arguments among your others.
+  </p>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">Updating a status panel</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">setStatus</span>(panel <span class="k">int</span>, text <span class="k">string</span>) {
+	panels := mf.status.<span class="f">Panels</span>()
+	<span class="k">if</span> panel &lt; <span class="f">len</span>(panels) {
+		panels[panel].<span class="f">SetText</span>(text)
+	}
+}</pre>
+</figure>
+
+<h3>Context menus</h3>
+
+<figure class="code">
+<pre translate="no">menu := <span class="f">goforms.NewContextMenu</span>(
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Copy"</span>),
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Paste"</span>),
+	<span class="f">goforms.NewMenuSeparator</span>(),
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Delete"</span>),
+)
+mf.grid.<span class="f">SetContextMenu</span>(menu)</pre>
+</figure>
+
+<p>
+  Right-clicks reach every control, including the ones Fyne would normally
+  swallow them on, because GoForms puts an interaction overlay above the
+  widgets rather than relying on each widget to forward the event.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="timer">
+<h2>Timers and background work</h2>
+
+<p>
+  <code translate="no">Timer</code> mirrors
+  <code translate="no">System.Windows.Forms.Timer</code>: it ticks on the UI
+  goroutine, so its handler may touch controls directly.
+</p>
+
+<figure class="code">
+<pre translate="no">mf.clock = <span class="f">goforms.NewTimer</span>(<span class="n">1000</span>)  <span class="c">// interval in milliseconds</span>
+mf.clock.Tick.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.<span class="f">setStatus</span>(<span class="n">1</span>, <span class="f">time.Now</span>().<span class="f">Format</span>(<span class="s">"15:04:05"</span>))
+})
+mf.clock.<span class="f">Start</span>()
+
+<span class="c">// Stop it when the form goes away, or it keeps ticking against</span>
+<span class="c">// controls that no longer exist.</span>
+mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.clock.<span class="f">Stop</span>()
+})</pre>
+</figure>
+
+<p>
+  A timer is for periodic UI work. For a long single operation, use a
+  goroutine and <code translate="no">fyne.Do</code>, as in
+  <a href="#ui-thread">The UI-thread rule</a> — a timer that fires while a
+  previous tick is still running will queue behind it.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-basics">
+<h2>The designer: canvas and selection</h2>
+
+<p>
+  Open any <code translate="no">*-designer.go</code> file and the designer
+  opens instead of the text editor. <strong>GoForms: Open as Text</strong>
+  switches to the source, and the button in the editor's title bar toggles
+  back.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Gesture</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td>Drag a control</td><td>Moves it. Edges snap to siblings' left, right and centre, with a guide line drawn where they line up.</td></tr>
+    <tr><td>Drag the corner handle</td><td>Resizes it. The handle appears on the selected control only.</td></tr>
+    <tr><td>Drag the canvas's corner handle</td><td>Resizes the form.</td></tr>
+    <tr><td><kbd>Ctrl</kbd> or <kbd>Shift</kbd> click</td><td>Extends the selection. Dragging any member then moves the whole group.</td></tr>
+    <tr><td>Click the canvas background</td><td>Selects the form itself — its title and size appear in the properties panel.</td></tr>
+    <tr><td>Drag from the toolbox</td><td>Adds a control. Drop it on a container to make it a child of that container.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Two ways to resize the form</span>
+  <p>
+    The canvas handle is convenient when the whole form fits on screen. When
+    it does not, click the canvas background and type the numbers into
+    <strong>Width</strong> and <strong>Height</strong> instead — the handle
+    would be past the scroll.
+  </p>
+</div>
+
+<h3>The canvas shows what will actually happen</h3>
+
+<p>
+  Docked controls are drawn glued to their parent's edge, not at the
+  coordinates they were dropped at, because the canvas runs the framework's
+  own arrange pass. A grid's column widths come from the same fitting code the
+  runtime uses. If the canvas and the running app disagree, that is a bug
+  worth reporting rather than something to design around.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-props">
+<h2>Properties and events</h2>
+
+<h3>The properties panel</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Group</th><th>What it edits</th></tr></thead>
+  <tbody>
+    <tr><td>Name</td><td>Renames the struct field, every reference to it, <em>and</em> any handler still named after it — across both files. Invalid names are refused rather than half-applied.</td></tr>
+    <tr><td>Parent</td><td>Moves the control into another container, including one half of a <code translate="no">SplitContainer</code> or a specific tab page.</td></tr>
+    <tr><td>Bounds</td><td>X, Y, Width, Height.</td></tr>
+    <tr><td>Text / Items / Columns</td><td>The caption, or the list a <code translate="no">ComboBox</code>, <code translate="no">ListBox</code>, <code translate="no">ListView</code> or <code translate="no">DataGridView</code> carries.</td></tr>
+    <tr><td>Collection</td><td>Tab titles, ToolStrip buttons, StatusStrip panels, tree nodes — with the right editor per type, including a click-handler box for ToolStrip buttons.</td></tr>
+    <tr><td>Properties</td><td>Every setter the catalogue knows, with an editor chosen by type: a checkbox for booleans, a spinner for numbers, a dropdown for enums, a row of checkboxes for flag sets like <code translate="no">Anchor</code>.</td></tr>
+    <tr><td>Align</td><td>Appears with more than one control selected: align left, right, top, bottom, centre horizontally or vertically, same width, same height. Everything aligns to the <em>last-clicked</em> control, as in WinForms.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>The events panel</h3>
+
+<p>
+  Each control lists its own events first, then the ones inherited from
+  <code translate="no">Control</code>, with a divider between. Type a name or
+  accept the suggested <code translate="no">&lt;id&gt;_&lt;Event&gt;</code>,
+  press <strong>Wire</strong>, and three things happen at once:
+</p>
+
+<ol>
+  <li>
+    A stub is created in the paired hand-written file, with the correct
+    argument type — <code translate="no">e goforms.MouseEventArgs</code> for a
+    <code translate="no">Click</code>, <code translate="no">e goforms.KeyEventArgs</code>
+    for a <code translate="no">KeyDown</code> — fully qualified, and the
+    <code translate="no">goforms</code> import is added if that file did not
+    have one.
+  </li>
+  <li>
+    The <code translate="no">Handle</code> call is written into
+    <code translate="no">initializeComponent</code>. Re-wiring an event
+    <em>rewrites</em> that line rather than adding a second one:
+    <code translate="no">Event.Handle</code> is multicast, so an appended call
+    would leave both handlers running.
+  </li>
+  <li>
+    Your cursor is put inside the new stub.
+  </li>
+</ol>
+
+<p>
+  <strong>Go to</strong> beside an already-wired event jumps to its
+  definition, wherever it lives.
+</p>
+
+<div class="note">
+  <span class="note-title">Where the stub lands</span>
+  <p>
+    The paired file first — <code translate="no">Foo-designer.go</code> pairs
+    with <code translate="no">Foo.go</code>. If that does not exist, another
+    <code translate="no">.go</code> file in the same directory that already
+    declares the receiver type; failing that, the alphabetically first
+    non-designer file; and if the directory has nothing else at all, the
+    counterpart is created from scratch, complete with package clause and
+    import.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-commands">
+<h2>Commands and shortcuts</h2>
+
+<p>
+  Everything below is on the command palette
+  (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, then type "GoForms").
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Command</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td><strong>GoForms: Create New Project…</strong></td><td>Scaffolds an app — <code translate="no">go.mod</code>, <code translate="no">main.go</code>, a <code translate="no">MainForm</code> — from an empty or an example template. Asks whether to use the published module or a local checkout; the published module is the default and needs nothing on disk.</td></tr>
+    <tr><td><strong>GoForms: New Form…</strong></td><td>Adds a <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> pair to any folder. Also on the Explorer's folder right-click menu.</td></tr>
+    <tr><td><strong>GoForms: Open Visual Designer</strong></td><td>Opens the designer for the current file.</td></tr>
+    <tr><td><strong>GoForms: Open as Text</strong></td><td>The inverse — the plain Go source.</td></tr>
+    <tr><td><strong>GoForms: Tidy Designer File</strong></td><td>Runs the cleanup pass by hand. The designer does it after every edit of its own, so this is for files edited outside it.</td></tr>
+    <tr><td><strong>GoForms: Check Setup</strong></td><td>Which <code translate="no">go</code> was found and everywhere it looked, whether the helper CLI builds and answers, and where the framework checkout is. Start here when something does not work.</td></tr>
+    <tr><td><strong>GoForms: Set Framework Path…</strong></td><td>Points at a local GoForms checkout, for projects that build against one.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Key</th><th>In the designer</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>Delete</kbd></td><td>Deletes the selection.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo.</td></tr>
+    <tr><td><kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click</td><td>Extends the selection.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">The designer has its own undo stack</span>
+  <p>
+    It edits the file through a helper process that writes to disk directly,
+    so the editor's own undo never sees those changes. <kbd>Ctrl</kbd>+<kbd>Z</kbd>
+    <em>inside the designer</em> steps through the designer's snapshots.
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> in the text editor undoes what you typed
+    there, which is a different history.
+  </p>
+</div>
+
+<h3>Settings</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Setting</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">goforms.goPath</code></td><td>Full path to a <code translate="no">go</code> executable, for when the editor cannot find one. A GUI editor inherits the desktop session's <code translate="no">PATH</code>, not the one your shell builds, so a Go under <code translate="no">/usr/local/go/bin</code> or managed by asdf/mise is often invisible to it.</td></tr>
+    <tr><td><code translate="no">goforms.frameworkPath</code></td><td>A local GoForms checkout, used when a new project opts to build against one.</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-tidy">
+<h2>What tidy removes</h2>
+
+<p>
+  A designer file is machine-managed, and a long session leaves statements
+  behind that no longer say anything: a setter written once per drag, an event
+  re-wired into a stack of <code translate="no">Handle</code> calls, a control
+  added to two containers. None of it shows in the designer — the model
+  reflects only the last value of each — so it accumulates unnoticed.
+</p>
+
+<p>
+  Every edit therefore ends with a cleanup pass. It removes:
+</p>
+
+<ul>
+  <li>setter calls that a later call already overrides;</li>
+  <li>all but the last wiring of an event;</li>
+  <li>repeated <code translate="no">AddControl</code> of the same control;</li>
+  <li>duplicate struct field declarations;</li>
+  <li>whole lines that are nothing but a commented-out generated statement.</li>
+</ul>
+
+<p>
+  The rule behind all five is the same: two statements that state the same
+  single fact are two answers to one question, and only the last of them can
+  be observable. So the last survives and the earlier ones go.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-limits">
+<h2>What the designer will not touch</h2>
+
+<p>
+  This is the part worth trusting, because it is what makes hand-editing a
+  designer file safe.
+</p>
+
+<p>
+  <strong>Only statements the catalogue models are ever rewritten.</strong>
+  A <code translate="no">Timer</code>, a <code translate="no">MenuStrip</code>,
+  a loop, a call into your own code, a helper function — anything the tool does
+  not recognise is left exactly where it is, by both the edit pass and the
+  cleanup pass.
+</p>
+
+<p>
+  Specifically:
+</p>
+
+<ul>
+  <li>
+    <strong>Item-adding calls are never collapsed.</strong>
+    <code translate="no">AddTab("Page")</code> twice means two pages with the
+    same title, not one line written twice.
+  </li>
+  <li>
+    <strong>Indexed setters are never collapsed.</strong>
+    <code translate="no">SetColumnStyle(0, …)</code> and
+    <code translate="no">SetColumnStyle(1, …)</code> say different things.
+  </li>
+  <li>
+    <strong>A form title that is not a plain string literal is refused.</strong>
+    If yours comes from a constant or a function call, the designer reports
+    that rather than replacing the expression with a literal.
+  </li>
+  <li>
+    <strong>An unrecognised control type is shown read-only.</strong>
+    It appears on the canvas and in the properties panel so you can see it,
+    but nothing about it is rewritten.
+  </li>
+  <li>
+    <strong>Every edit is atomic.</strong> If any part of a batch fails to
+    apply, the file is restored to exactly what it was.
+  </li>
+  <li>
+    <strong>A cleanup that would not leave the file parseable is abandoned</strong>
+    rather than written.
+  </li>
+</ul>
+
+<p>
+  You can hand-edit a designer file freely. Expect it to be gofmt'd, and
+  expect anything genuinely redundant to be removed next time the designer
+  saves it.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="csharp-map">
+<h2>C# to Go, side by side</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>WinForms</th><th>GoForms</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">class MainForm : Form</code></td><td><code translate="no">type MainForm struct { *goforms.Form }</code></td></tr>
+    <tr><td><code translate="no">this</code></td><td><code translate="no">mf.Form</code> where a <code translate="no">*Form</code> is wanted</td></tr>
+    <tr><td><code translate="no">Location</code> + <code translate="no">Size</code></td><td><code translate="no">SetBounds(x, y, w, h)</code></td></tr>
+    <tr><td><code translate="no">btn.Click += Handler</code></td><td><code translate="no">btn.Click.Handle(handler)</code></td></tr>
+    <tr><td><code translate="no">void H(object s, EventArgs e)</code></td><td><code translate="no">func H(sender any, e goforms.EventArgs)</code></td></tr>
+    <tr><td><code translate="no">Controls.Add(c)</code></td><td><code translate="no">AddControl(c)</code></td></tr>
+    <tr><td><code translate="no">form.Show()</code></td><td><code translate="no">form.Show()</code></td></tr>
+    <tr><td><code translate="no">form.ShowDialog()</code></td><td><code translate="no">form.ShowDialog()</code> — <strong>from a goroutine</strong></td></tr>
+    <tr><td><code translate="no">DialogResult = OK; Close()</code></td><td><code translate="no">CloseWithResult(goforms.DialogOK)</code></td></tr>
+    <tr><td><code translate="no">MessageBox.Show(...)</code> returns</td><td><code translate="no">ShowMessageBox(..., func(r DialogResult))</code> calls back</td></tr>
+    <tr><td><code translate="no">e.Cancel = true</code> in <code translate="no">FormClosing</code></td><td>the same, on <code translate="no">*goforms.CancelEventArgs</code></td></tr>
+    <tr><td><code translate="no">Invoke</code> / <code translate="no">BeginInvoke</code></td><td><code translate="no">fyne.Do(func(){ … })</code></td></tr>
+    <tr><td><code translate="no">Anchor = Top | Right</code></td><td><code translate="no">SetAnchor(goforms.AnchorTop | goforms.AnchorRight)</code></td></tr>
+    <tr><td><code translate="no">Dock = DockStyle.Fill</code></td><td><code translate="no">SetDock(goforms.DockFill)</code></td></tr>
+    <tr><td><code translate="no">Application.Run(new MainForm())</code></td><td><code translate="no">goforms.Run(NewMainForm().Form)</code></td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="gotchas">
+<h2>Traps worth knowing</h2>
+
+<h3>ShowDialog from a handler deadlocks</h3>
+<p>
+  The one that costs the most time, because there is no error — the window
+  just stops. See <a href="#ui-thread">The UI-thread rule</a>. If a form
+  freezes on a click, read that click's handler first.
+</p>
+
+<h3><code translate="no">.Handle</code> adds, it never replaces</h3>
+<p>
+  Wiring the same handler twice runs it twice, and there is no
+  <code translate="no">-=</code>. In a designer file this is handled for you —
+  re-wiring rewrites the line — but code that wires events in a loop or in a
+  method that can run more than once will accumulate handlers.
+</p>
+
+<h3>Do work in <code translate="no">Load</code>, not in the constructor</h3>
+<p>
+  <code translate="no">NewMainForm()</code> returns before the window exists.
+  Filling lists, measuring, or anything that touches the window belongs in a
+  <code translate="no">Load</code> handler.
+</p>
+
+<h3>A docked control ignores its bounds</h3>
+<p>
+  Setting <code translate="no">SetBounds</code> on something with a
+  <code translate="no">Dock</code> other than <code translate="no">DockNone</code>
+  changes nothing visible — that is correct behaviour, and the same as
+  WinForms. If a control will not move, check its Dock.
+</p>
+
+<h3>Dock order is add order</h3>
+<p>
+  Two docked siblings compete for the corner, and the one added first wins.
+  Reordering the <code translate="no">AddControl</code> calls is how you change
+  which.
+</p>
+
+<h3>A child's coordinates are relative to its parent</h3>
+<p>
+  A control at <code translate="no">(0, 0)</code> on a Panel sits at the
+  panel's top-left corner, not the form's. Moving a control between containers
+  in the designer keeps its position within the new parent, which is usually
+  what you want and occasionally surprising.
+</p>
+
+<h3>The generated designer file is not a place for logic</h3>
+<p>
+  It is regenerated. Anything the catalogue does not model survives, but
+  putting business logic there is fighting the tool — the other file exists
+  precisely so you do not have to.
+</p>
+
+<h3>Stop your timers on <code translate="no">Closed</code></h3>
+<p>
+  A timer outlives the form that made it, and keeps firing at controls that
+  are gone.
+</p>
+
+<h3>Read dialog results before crossing goroutines</h3>
+<p>
+  Copy what you need out of the dialog on the goroutine that owns it, and pass
+  the copy into <code translate="no">fyne.Do</code> — see
+  <a href="#passing-data">Passing data both ways</a>.
+</p>
+</section>
+
+<section>
+<h2>Where to go next</h2>
+<ul>
+  <li><a href="https://github.com/Go-Forms/GoFormsShowcase">GoFormsShowcase</a> — one form per subject with a live event log. Every claim on this page can be checked by running it.</li>
+  <li><a href="https://github.com/Go-Forms/GoForms/tree/main/docs">The reference docs</a> — controls, layout, events and the designer, in more detail per topic.</li>
+  <li><a href="https://github.com/Go-Forms/GoForms/issues">Issues</a> — for anything here that turns out to be wrong.</li>
+</ul>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>GoForms — MIT licensed.</span>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="guide.html">Guide</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Reference</a>
+      <a href="https://github.com/Go-Forms">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// Highlights the section currently on screen in the sidebar. Progressive
+// enhancement: without it every link still works, the current one is just
+// not marked.
+(function () {
+	var links = Array.prototype.slice.call(document.querySelectorAll('.doc-nav a[href^="#"]'));
+	if (!links.length || !('IntersectionObserver' in window)) return;
+
+	var byId = {};
+	links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+
+	var visible = new Set();
+	var observer = new IntersectionObserver(function (entries) {
+		entries.forEach(function (entry) {
+			if (entry.isIntersecting) visible.add(entry.target.id);
+			else visible.delete(entry.target.id);
+		});
+		// The topmost visible section wins, so scrolling up and down both
+		// land on the heading actually being read.
+		var current = null;
+		Object.keys(byId).forEach(function (id) {
+			if (current === null && visible.has(id)) current = id;
+		});
+		links.forEach(function (a) {
+			a.classList.toggle('current', a.getAttribute('href') === '#' + current);
+		});
+	}, { rootMargin: '-70px 0px -70% 0px' });
+
+	Object.keys(byId).forEach(function (id) {
+		var section = document.getElementById(id);
+		if (section) observer.observe(section);
+	});
+})();
+</script>
+
+</body>
+</html>

@@ -7,7 +7,8 @@
 <p align="center">
   A Windows Forms-style GUI framework for Go.<br>
   <a href="https://go-forms.github.io/GoForms/">Website</a> ·
-  <a href="docs/README.md">Documentation</a> ·
+  <a href="https://go-forms.github.io/GoForms/guide.html">Guide</a> ·
+  <a href="docs/README.md">Reference</a> ·
   <a href="https://github.com/Go-Forms/GoFormsDesigner">Designer</a> ·
   <a href="https://github.com/Go-Forms/GoFormsShowcase">Showcase</a>
 </p>

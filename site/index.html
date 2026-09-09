@@ -26,6 +26,7 @@
       <a href="#designer">Designer</a>
       <a href="#controls">Controls</a>
       <a href="#start">Get started</a>
+      <a href="guide.html">Guide</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
   </div>
@@ -47,6 +48,7 @@
       <div class="cta">
         <a class="btn btn-primary" href="#start">Get started</a>
         <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoFormsDesigner/releases/latest">Download the designer</a>
+        <a class="btn btn-ghost" href="guide.html">Read the guide</a>
         <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoForms">Browse the source</a>
       </div>
     </div>
@@ -154,6 +156,70 @@
   </div>
 </section>
 
+<section id="mapping">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>The same code, in both languages</h2>
+      <p>
+        Names, semantics and event signatures mirror
+        <code translate="no">System.Windows.Forms</code> deliberately, so what
+        you already know transfers instead of having to be relearned.
+      </p>
+    </div>
+
+    <div class="split">
+      <figure class="code">
+        <figcaption translate="no">C#</figcaption>
+<pre translate="no"><span class="k">public partial class</span> <span class="t">MainForm</span> : <span class="t">Form</span>
+{
+    <span class="k">public</span> <span class="f">MainForm</span>() =&gt; <span class="f">InitializeComponent</span>();
+
+    <span class="k">private void</span> <span class="f">btnGreet_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
+    {
+        lblHello.Text = <span class="s">"Clicked!"</span>;
+    }
+
+    <span class="k">private void</span> <span class="f">btnAbout_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
+    {
+        <span class="k">using var</span> dlg = <span class="k">new</span> <span class="t">AboutForm</span>();
+        <span class="k">if</span> (dlg.<span class="f">ShowDialog</span>(<span class="k">this</span>) == DialogResult.OK)
+            <span class="f">ApplyChanges</span>();
+    }
+}</pre>
+      </figure>
+
+      <figure class="code">
+        <figcaption translate="no">Go</figcaption>
+<pre translate="no"><span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span>{ *<span class="t">goforms.Form</span> }
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnGreet_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	mf.lblHello.<span class="f">SetText</span>(<span class="s">"Clicked!"</span>)
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnAbout_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	<span class="k">go func</span>() {   <span class="c">// ShowDialog blocks; never on the UI thread</span>
+		dlg := <span class="f">aboutform.NewAboutForm</span>()
+		<span class="k">if</span> dlg.<span class="f">ShowDialog</span>() == goforms.DialogOK {
+			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyChanges</span>() })
+		}
+	}()
+}</pre>
+      </figure>
+    </div>
+
+    <p style="margin-top:1.5rem;color:var(--ink-soft)">
+      The one real difference is the last one: GoForms draws on a single
+      goroutine, so anything that waits — a dialog included — runs off it.
+      <a href="guide.html#ui-thread">The guide explains the rule and the two
+      lines that satisfy it</a>.
+    </p>
+  </div>
+</section>
+
 <section id="designer">
   <div class="wrap">
     <div class="section-head">
@@ -238,7 +304,7 @@
           </li>
           <li>
             <h3>Files that stay clean</h3>
-            <p>Every edit runs a tidy pass that drops what the edit made redundant: superseded setters, stacked event wirings, duplicated adds. The file after an hour of dragging reads like the file after five minutes of it.</p>
+            <p>Every edit runs a tidy pass that drops what the edit made redundant: superseded setters, stacked event wirings, duplicated adds. The file after an hour of dragging reads like the file after five minutes of it. <a href="guide.html#designer-limits">What it will never touch</a> is spelled out in the guide.</p>
           </li>
         </ol>
       </div>
@@ -388,7 +454,8 @@ code --install-extension goforms-designer-0.7.1.vsix
   <div class="wrap">
     <span>GoForms — MIT licensed.</span>
     <nav>
-      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Documentation</a>
+      <a href="guide.html">Guide</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Reference</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/controls.md">Controls</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/layout.md">Layout</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/events.md">Events</a>

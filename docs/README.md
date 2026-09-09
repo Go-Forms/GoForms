@@ -15,6 +15,11 @@ not write Fyne code to use it.
 
 ## Contents
 
+For the narrative version — moving between forms, modal and custom dialogs,
+swapping views inside one window, the UI-thread rule, and every designer
+command — see **[the guide](https://go-forms.github.io/GoForms/guide.html)**.
+The documents below are the per-topic reference.
+
 | Document | What is in it |
 |---|---|
 | [controls.md](controls.md) | Every control, its WinForms equivalent, and how to build it |
