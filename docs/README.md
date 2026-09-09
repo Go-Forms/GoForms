@@ -42,7 +42,7 @@ designer reads and writes.
 ```go
 package mainform
 
-import "goforms"
+import "github.com/Go-Forms/GoForms"
 
 type MainForm struct {
 	*goforms.Form
@@ -83,7 +83,7 @@ func (mf *MainForm) initializeComponent() {
 ```go
 package mainform
 
-import "goforms"
+import "github.com/Go-Forms/GoForms"
 
 func (mf *MainForm) btnGreet_Click(sender any, e goforms.MouseEventArgs) {
 	goforms.ShowMessageBox(mf.Form, "Hello, "+mf.txtName.Text()+"!", "Greeting",
@@ -97,7 +97,7 @@ func (mf *MainForm) btnGreet_Click(sender any, e goforms.MouseEventArgs) {
 package main
 
 import (
-	"goforms"
+	"github.com/Go-Forms/GoForms"
 
 	mainform "myapp/Forms/MainForm"
 )

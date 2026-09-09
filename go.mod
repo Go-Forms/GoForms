@@ -1,4 +1,4 @@
-module goforms
+module github.com/Go-Forms/GoForms
 
 go 1.23.0
 

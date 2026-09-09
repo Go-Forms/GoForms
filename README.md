@@ -38,7 +38,7 @@ behaves like a C# event.
 ```go
 package main
 
-import "goforms"
+import "github.com/Go-Forms/GoForms"
 
 func main() {
 	goforms.NewApplication("com.example.myapp")
@@ -76,8 +76,7 @@ YourApp/
       SettingsForm.go
       SettingsForm-designer.go
   main.go
-  go.mod                     <- requires "goforms"; use a replace directive
-                                 until GoForms is published to a real module path
+  go.mod                     <- require github.com/Go-Forms/GoForms
 ```
 
 The `-designer.go` file declares the form's struct (embedding `*goforms.Form`,
@@ -124,8 +123,7 @@ go mod init yourapp
 ```
 
 ```go.mod
-require goforms v0.0.0
-replace goforms => ../GoForms   // or wherever you cloned/vendored it
+require github.com/Go-Forms/GoForms v0.1.0
 ```
 
 Then `go mod tidy`. Nothing else is needed — GoForms has no code generation
