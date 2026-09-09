@@ -6,6 +6,9 @@
 <title>GoForms — WinForms for Go, with a real visual designer</title>
 <meta name="description" content="GoForms is a Windows Forms-style GUI framework for Go: absolute layout, docking and anchoring, C#-style events, and a drag-and-drop designer that edits your Go source directly inside VS Code.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://go-forms.github.io/GoForms/">
+<link rel="alternate" hreflang="ru" href="https://go-forms.github.io/GoForms/ru/">
+<link rel="alternate" hreflang="x-default" href="https://go-forms.github.io/GoForms/">
 <link rel="stylesheet" href="style.css">
 <meta property="og:title" content="GoForms — WinForms for Go">
 <meta property="og:description" content="A Windows Forms-style GUI framework for Go, with a drag-and-drop designer for VS Code that edits your Go source directly.">
@@ -29,6 +32,10 @@
       <a href="guide.html">Guide</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
+    <div class="lang-switch">
+      <a href="index.html" aria-current="true" hreflang="en">EN</a>
+      <a href="ru/index.html" hreflang="ru">RU</a>
+    </div>
   </div>
 </header>
 
@@ -409,7 +416,7 @@ git clone git@github.com:Go-Forms/GoFormsShowcase.git
       <figure class="code">
         <figcaption>Install the designer</figcaption>
 <pre translate="no"><span class="c"># Grab the .vsix from the latest release, then:</span>
-code --install-extension goforms-designer-0.7.1.vsix
+code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>.vsix
 
 <span class="c"># Then, in VS Code:</span>
 <span class="c">#   Ctrl+Shift+P -> "GoForms: Create New Project..."</span>
@@ -464,6 +471,28 @@ code --install-extension goforms-designer-0.7.1.vsix
     </nav>
   </div>
 </footer>
+
+<script>
+// The install command names a version, and a version pinned in HTML is wrong
+// from the next release onwards. Ask GitHub what the latest one is; the text
+// already in the page is the fallback, so a blocked or rate-limited request
+// leaves a command that still works.
+(function () {
+	var slots = document.querySelectorAll('[data-latest-version]');
+	if (!slots.length || !window.fetch) return;
+
+	fetch('https://api.github.com/repos/Go-Forms/GoFormsDesigner/releases/latest')
+		.then(function (r) { return r.ok ? r.json() : null; })
+		.then(function (data) {
+			var tag = data && data.tag_name;
+			if (!tag) return;
+			var version = String(tag).replace(/^v/, '');
+			if (!/^\d+\.\d+\.\d+$/.test(version)) return;
+			slots.forEach(function (el) { el.textContent = version; });
+		})
+		.catch(function () { /* keep the fallback */ });
+})();
+</script>
 
 </body>
 </html>

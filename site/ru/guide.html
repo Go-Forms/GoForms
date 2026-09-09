@@ -1,0 +1,1783 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Руководство GoForms — формы, диалоги, раскладка и дизайнер</title>
+<meta name="description" content="Полное руководство по GoForms: переходы между формами, модальные и собственные диалоги, смена вида внутри одного окна, правило UI-потока, раскладка, события и все команды дизайнера.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://go-forms.github.io/GoForms/guide.html">
+<link rel="alternate" hreflang="ru" href="https://go-forms.github.io/GoForms/ru/guide.html">
+<link rel="alternate" hreflang="x-default" href="https://go-forms.github.io/GoForms/guide.html">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../guide.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img src="../assets/logo.svg" alt="">
+      <span>GoForms</span>
+    </a>
+    <nav>
+      <a href="index.html">Главная</a>
+      <a href="guide.html">Руководство</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
+      <a href="https://github.com/Go-Forms">GitHub</a>
+    </nav>
+    <div class="lang-switch">
+      <a href="../guide.html" hreflang="en">EN</a>
+      <a href="guide.html" aria-current="true" hreflang="ru">RU</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap doc-shell">
+
+<aside class="doc-nav">
+  <strong>Начало</strong>
+  <a href="#install">Установка</a>
+  <a href="#anatomy">Устройство формы</a>
+  <a href="#lifecycle">Жизненный цикл и события</a>
+  <a href="#ui-thread">Правило UI-потока</a>
+
+  <strong>Переходы между формами</strong>
+  <a href="#modeless">Открыть другую форму</a>
+  <a href="#modal">Модальные формы и результат</a>
+  <a href="#custom-dialog">Свой диалог</a>
+  <a href="#passing-data">Передача данных в обе стороны</a>
+  <a href="#swap-in-place">Смена вида в одном окне</a>
+  <a href="#closing">Закрытие, отмена, подтверждение</a>
+
+  <strong>Готовые диалоги</strong>
+  <a href="#messagebox">Сообщения и ввод строки</a>
+  <a href="#filedialogs">Файлы, папки, цвета</a>
+
+  <strong>Построение интерфейса</strong>
+  <a href="#layout">Позиция, докинг, якоря</a>
+  <a href="#panels">Панели раскладки</a>
+  <a href="#controls">Каталог контролов</a>
+  <a href="#menus">Меню, панели, статусбар</a>
+  <a href="#timer">Таймеры и фоновая работа</a>
+
+  <strong>Дизайнер</strong>
+  <a href="#designer-basics">Холст и выделение</a>
+  <a href="#designer-props">Свойства и события</a>
+  <a href="#designer-commands">Команды и горячие клавиши</a>
+  <a href="#designer-theme">Редактор тем</a>
+  <a href="#designer-tidy">Что убирает очистка</a>
+  <a href="#designer-limits">Что он не тронет</a>
+
+  <strong>Справочник</strong>
+  <a href="#csharp-map">C# и Go рядом</a>
+  <a href="#gotchas">Грабли, о которых стоит знать</a>
+</aside>
+
+<main class="doc-body">
+
+<h1>Руководство GoForms</h1>
+<p class="lead">
+  Всё, что не очевидно из API: как формы добираются друг до друга, как диалог
+  возвращает ответ, в какой вы горутине, что дизайнер перепишет, а что не
+  тронет, — и десяток граблей, о которых лучше узнать до, а не после.
+</p>
+
+<!-- ================================================================== -->
+<section id="install">
+<h2>Установка</h2>
+
+<p>
+  GoForms — обычный Go-модуль. Ни вендоринга, ни директивы
+  <code translate="no">replace</code> не требуется:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">терминал</figcaption>
+<pre translate="no">go get github.com/Go-Forms/GoForms</pre>
+</figure>
+
+<p>
+  Путь модуля и имя пакета различаются — для Go это нормально, но увидеть стоит
+  один раз: <em>путь</em> — <code translate="no">github.com/Go-Forms/GoForms</code>,
+  а связывает он <em>имя</em> <code translate="no">goforms</code>. Псевдоним не нужен.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">main.go</figcaption>
+<pre translate="no"><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+	<span class="c">// id — идентичность приложения для ОС; подойдёт любая строка</span>
+	<span class="c">// в обратной DNS-нотации, которой вы владеете. Вызывается первым.</span>
+	<span class="f">goforms.NewApplication</span>(<span class="s">"com.example.myapp"</span>)
+
+	<span class="f">goforms.Run</span>(<span class="f">mainform.NewMainForm</span>().Form)
+}</pre>
+</figure>
+
+<p>
+  Отрисовкой занимается <a href="https://fyne.io">Fyne</a>, а это CGo, поэтому
+  для сборки нужен C-компилятор и заголовки OpenGL вашей платформы. На Debian
+  и Ubuntu:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">terminal</figcaption>
+<pre translate="no">sudo apt-get install gcc pkg-config libgl1-mesa-dev xorg-dev \
+                     libxkbcommon-dev libwayland-dev</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">Зачем libwayland-dev</span>
+  <p>
+    Fyne на Linux по умолчанию собирает свою ветку Wayland и обращается к ней
+    через <code translate="no">#cgo pkg-config: wayland-client</code>. Без этого
+    пакета сборка падает с ошибкой pkg-config, в первой строке которой нет ни
+    слова ни про Fyne, ни про Wayland.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="anatomy">
+<h2>Устройство формы</h2>
+
+<p>
+  Форма — это два файла, ровно как форма WinForms есть
+  <code translate="no">Form1.cs</code> плюс
+  <code translate="no">Form1.Designer.cs</code>. Разделение — соглашение, на
+  которое опирается дизайнер, а не требование фреймворка; но именно оно
+  позволяет таскать контролы, не боясь, что дизайнер тронет ваш код.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Файл</th><th>Содержит</th><th>Кто пишет</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code translate="no">MainForm-designer.go</code></td>
+      <td>Поля структуры, по одному на контрол, и <code translate="no">initializeComponent()</code> — создание, границы, свойства, привязка событий.</td>
+      <td>Дизайнер. Править руками можно, но будьте готовы к переформатированию.</td>
+    </tr>
+    <tr>
+      <td><code translate="no">MainForm.go</code></td>
+      <td>Тела обработчиков и всё остальное, что пишете вы.</td>
+      <td>Вы. Дизайнер только дописывает сюда заглушки.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no"><span class="k">package</span> mainform
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	btnGreet *<span class="t">goforms.Button</span>
+}
+
+<span class="k">func</span> <span class="f">NewMainForm</span>() *<span class="t">MainForm</span> {
+	mf := &amp;<span class="t">MainForm</span>{Form: <span class="f">goforms.NewForm</span>(<span class="s">"Main"</span>, <span class="n">400</span>, <span class="n">300</span>)}
+	mf.<span class="f">initializeComponent</span>()
+	<span class="k">return</span> mf
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">initializeComponent</span>() {
+	mf.<span class="f">SetClientSize</span>(<span class="n">400</span>, <span class="n">300</span>)
+
+	mf.btnGreet = <span class="f">goforms.NewButton</span>(<span class="s">"Greet"</span>)
+	mf.btnGreet.<span class="f">SetBounds</span>(<span class="n">20</span>, <span class="n">20</span>, <span class="n">100</span>, <span class="n">30</span>)
+	mf.btnGreet.Click.<span class="f">Handle</span>(mf.btnGreet_Click)
+	mf.<span class="f">AddControl</span>(mf.btnGreet)
+}</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Form1.Designer.cs — то же самое</figcaption>
+<pre translate="no"><span class="k">namespace</span> MyApp;
+
+<span class="k">partial class</span> <span class="t">MainForm</span>
+{
+    <span class="k">private</span> <span class="t">Button</span> btnGreet;
+
+    <span class="k">private void</span> <span class="f">InitializeComponent</span>()
+    {
+        <span class="k">this</span>.ClientSize = <span class="k">new</span> <span class="t">Size</span>(<span class="n">400</span>, <span class="n">300</span>);
+
+        <span class="k">this</span>.btnGreet = <span class="k">new</span> <span class="t">Button</span>();
+        <span class="k">this</span>.btnGreet.Text = <span class="s">"Greet"</span>;
+        <span class="k">this</span>.btnGreet.Location = <span class="k">new</span> <span class="t">Point</span>(<span class="n">20</span>, <span class="n">20</span>);
+        <span class="k">this</span>.btnGreet.Size = <span class="k">new</span> <span class="t">Size</span>(<span class="n">100</span>, <span class="n">30</span>);
+        <span class="k">this</span>.btnGreet.Click += <span class="k">this</span>.btnGreet_Click;
+        <span class="k">this</span>.Controls.<span class="f">Add</span>(<span class="k">this</span>.btnGreet);
+    }
+}</pre>
+  </figure>
+</div>
+
+<p>
+  Три отличия стоит назвать отдельно — именно на них спотыкаются чаще всего:
+</p>
+
+<ul>
+  <li>
+    <strong>Встраивание, а не наследование.</strong>
+    <code translate="no">*goforms.Form</code> встроен, поэтому
+    <code translate="no">mf.Show()</code>,
+    <code translate="no">mf.Close()</code> и события формы поднимаются на ваш
+    тип. Там, где C# передал бы <code translate="no">this</code>, Go передаёт
+    <code translate="no">mf.Form</code>.
+  </li>
+  <li>
+    <strong>Прямоугольник задаётся одним вызовом.</strong>
+    <code translate="no">SetBounds(x, y, w, h)</code> вместо раздельных
+    <code translate="no">Location</code> и <code translate="no">Size</code>.
+  </li>
+  <li>
+    <strong><code translate="no">.Handle(…)</code> — это <code translate="no">+=</code>.</strong>
+    События multicast: вызвали дважды — обработчик отработает дважды.
+  </li>
+</ul>
+</section>
+
+<!-- ================================================================== -->
+<section id="lifecycle">
+<h2>Жизненный цикл и события</h2>
+
+<p>
+  Форма поднимает четыре события. Порядок такой, и
+  <code translate="no">Load</code> срабатывает <em>один раз</em>: спрятать
+  форму и показать снова не поднимет его второй раз — ровно как в WinForms.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Событие</th><th>Аргумент</th><th>Когда</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">Load</code></td><td><code translate="no">EventArgs</code></td><td>Один раз, при первом показе формы. Заполняйте списки и задавайте начальное состояние здесь, а не в конструкторе.</td></tr>
+    <tr><td><code translate="no">Resize</code></td><td><code translate="no">EventArgs</code></td><td>При каждом изменении размера окна. Новый размер читается через <code translate="no">ClientSize()</code>.</td></tr>
+    <tr><td><code translate="no">Closing</code></td><td><code translate="no">*CancelEventArgs</code></td><td>Перед тем как окно исчезнет — от крестика, <kbd>Alt</kbd>+<kbd>F4</kbd> или вызова <code translate="no">Close()</code> одинаково. Присвойте <code translate="no">e.Cancel = true</code>, чтобы отменить.</td></tr>
+    <tr><td><code translate="no">Closed</code></td><td><code translate="no">EventArgs</code></td><td>После того как окно закрылось. Здесь вы сбрасываете свою ссылку на форму.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Closing принимает указатель</span>
+  <p>
+    <code translate="no">Closing</code> — это
+    <code translate="no">Event[*CancelEventArgs]</code>, а не
+    <code translate="no">Event[CancelEventArgs]</code>. Указатель здесь
+    обязателен: весь смысл в том, что ваш обработчик пишет
+    <code translate="no">e.Cancel</code>, а фреймворк читает это обратно.
+    Обработчик со значением не подойдёт по типу события и просто никогда не
+    будет вызван.
+  </p>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.cboCountry.<span class="f">SetItems</span>(<span class="f">loadCountries</span>())
+	mf.cboCountry.<span class="f">SetSelectedIndex</span>(<span class="n">0</span>)
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Closing</span>(sender <span class="k">any</span>, e *<span class="t">goforms.CancelEventArgs</span>) {
+	<span class="k">if</span> mf.dirty {
+		e.Cancel = <span class="k">true</span>
+		<span class="f">goforms.ShowMessageBox</span>(mf.Form,
+			<span class="s">"Save your changes first."</span>, <span class="s">"Unsaved work"</span>,
+			goforms.MessageBoxOK, goforms.MessageBoxWarning, <span class="k">nil</span>)
+	}
+}</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="ui-thread">
+<h2>Правило UI-потока</h2>
+
+<p>
+  Самое важное на этой странице. Прочитайте до того, как напишете обработчик,
+  который чего-то ждёт.
+</p>
+
+<p>
+  Каждый обработчик события выполняется в <strong>UI-горутине</strong> — той
+  единственной, которая рисует. Пока работает ваш обработчик, ничего не
+  перерисовывается и ввод не обрабатывается. Отсюда два правила, и нарушение
+  любого даёт замерзшее окно, а не сообщение об ошибке.
+</p>
+
+<h3>1. Никогда не блокируйте внутри обработчика</h3>
+
+<p>
+  Всё, что ждёт, — HTTP-запрос, обращение к базе,
+  <code translate="no">time.Sleep</code> и в особенности
+  <code translate="no">ShowDialog()</code> — должно выполняться в горутине,
+  которую вы запустили сами.
+</p>
+
+<h3>2. Возвращайтесь через <code translate="no">fyne.Do</code></h3>
+
+<p>
+  Выйдя из UI-горутины, вы не имеете права трогать контролы. Возвращайтесь
+  через <code translate="no">fyne.Do</code> — он ставит функцию в очередь на
+  выполнение в UI-горутине.
+</p>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">Неправильно — окно замрёт</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnLoad_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	<span class="c">// Блокирует ту самую горутину, которая должна</span>
+	<span class="c">// рисовать индикатор, так что он не появится.</span>
+	rows := <span class="f">fetchFromServer</span>()
+	mf.grid.<span class="f">SetRows</span>(rows)
+}</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Правильно</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnLoad_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	mf.status.<span class="f">SetText</span>(<span class="s">"Loading…"</span>)
+
+	<span class="k">go func</span>() {
+		rows := <span class="f">fetchFromServer</span>()  <span class="c">// вне UI-потока</span>
+
+		<span class="f">fyne.Do</span>(<span class="k">func</span>() {          <span class="c">// обратно в него</span>
+			mf.grid.<span class="f">SetRows</span>(rows)
+			mf.status.<span class="f">SetText</span>(<span class="s">"Ready"</span>)
+		})
+	}()
+}</pre>
+  </figure>
+</div>
+
+<p>
+  <code translate="no">fyne.Do</code> живёт в
+  <code translate="no">fyne.io/fyne/v2</code>, поэтому файл, который его
+  использует, импортирует Fyne напрямую. Это единственное место, где GoForms
+  не прячет Fyne, — потому что поток, в который ставится задача, принадлежит ему.
+</p>
+
+<div class="note warn">
+  <span class="note-title">Как это выглядит</span>
+  <p>
+    Заблокировавший обработчик не падает и ничего не пишет в лог. Окно
+    перестаёт перерисовываться — белеет или застывает на последнем кадре, — и
+    в конце концов ОС предлагает его убить. Если форма замирает ровно в момент
+    клика, смотрите сначала на обработчик этого клика.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="modeless">
+<h2>Открыть другую форму</h2>
+
+<p>
+  Немодальная форма — это <code translate="no">Show()</code>. Внимания требует
+  только ссылка: больше форму никто не держит, и ничто не мешает открыть вторую
+  её копию.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="c">// Поле формы, а не локальная переменная: локальная выйдет из области</span>
+<span class="c">// видимости, как только обработчик вернётся, и второй клик по кнопке</span>
+<span class="c">// откроет второе окно поверх первого.</span>
+<span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	<span class="c">// ... поля от дизайнера ...</span>
+	settings *<span class="t">settingsform.SettingsForm</span>
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnSettings_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	<span class="k">if</span> mf.settings == <span class="k">nil</span> {
+		mf.settings = <span class="f">settingsform.NewSettingsForm</span>()
+
+		<span class="c">// Сброс поля в Closed — то, из-за чего следующий клик откроет</span>
+		<span class="c">// новое окно, а не попытается показать закрытое.</span>
+		mf.settings.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+			mf.settings = <span class="k">nil</span>
+		})
+	}
+	mf.settings.<span class="f">Show</span>()
+}</pre>
+</figure>
+
+<p>
+  <code translate="no">Show()</code> на уже видимой форме выводит её вперёд,
+  поэтому проверка выше даёт «открыть или сфокусировать уже открытую» — то,
+  чего от меню «Сервис» и ждут.
+</p>
+
+<h3>Прятать вместо закрытия, когда повторное открытие должно быть дешёвым</h3>
+
+<p>
+  <code translate="no">Hide()</code> сохраняет форму и её состояние;
+  <code translate="no">Close()</code> уничтожает окно. После скрытия
+  <code translate="no">Load</code> заново не сработает, поэтому спрятанная и
+  снова показанная форма сохраняет всё, что пользователь в неё ввёл.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="modal">
+<h2>Модальные формы и результат</h2>
+
+<p>
+  <code translate="no">ShowDialog()</code> блокирует до закрытия формы и
+  возвращает её <code translate="no">DialogResult</code> — форма та же, что в
+  WinForms. Важное отличие в том, <em>откуда</em> его можно вызывать.
+</p>
+
+<div class="note warn">
+  <span class="note-title">Всегда из горутины</span>
+  <p>
+    <code translate="no">ShowDialog()</code> блокирует ту горутину, из которой
+    вызван. Из обработчика клика это UI-горутина — та самая, которая должна
+    нарисовать диалог, которого вы ждёте. Приложение встаёт в дедлок само с
+    собой, а диалог так и не появляется.
+  </p>
+</div>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">C#</figcaption>
+<pre translate="no"><span class="k">private void</span> <span class="f">btnAbout_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
+{
+    <span class="k">using var</span> dlg = <span class="k">new</span> <span class="t">AboutForm</span>();
+
+    <span class="k">if</span> (dlg.<span class="f">ShowDialog</span>(<span class="k">this</span>) == DialogResult.OK)
+    {
+        <span class="f">ApplyChanges</span>();
+    }
+}</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnAbout_Click</span>(
+	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
+) {
+	<span class="k">go func</span>() {
+		dlg := <span class="f">aboutform.NewAboutForm</span>()
+		result := dlg.<span class="f">ShowDialog</span>()   <span class="c">// блокирует здесь</span>
+
+		<span class="k">if</span> result == goforms.DialogOK {
+			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyChanges</span>() })
+		}
+	}()
+}</pre>
+  </figure>
+</div>
+
+<p>
+  Результатов пять:
+  <code translate="no">DialogNone</code>,
+  <code translate="no">DialogOK</code>,
+  <code translate="no">DialogCancel</code>,
+  <code translate="no">DialogYes</code> и
+  <code translate="no">DialogNo</code>.
+  Форма, закрытая крестиком или <code translate="no">Close()</code>, вернёт
+  <code translate="no">DialogNone</code> — так вы отличите «пользователь
+  отмахнулся» от «пользователь выбрал Отмену».
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="custom-dialog">
+<h2>Свой диалог</h2>
+
+<p>
+  Отдельного типа для диалога нет. Диалог — это форма, кнопки которой вызывают
+  <code translate="no">CloseWithResult</code> вместо
+  <code translate="no">Close</code>. Весь механизм. Собирается в дизайнере, как
+  любая другая форма.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">ConfirmForm-designer.go — собрано в дизайнере</figcaption>
+<pre translate="no"><span class="k">type</span> <span class="t">ConfirmForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	lblMessage *<span class="t">goforms.Label</span>
+	btnOK      *<span class="t">goforms.Button</span>
+	btnCancel  *<span class="t">goforms.Button</span>
+}
+
+<span class="k">func</span> <span class="f">NewConfirmForm</span>() *<span class="t">ConfirmForm</span> {
+	f := &amp;<span class="t">ConfirmForm</span>{Form: <span class="f">goforms.NewForm</span>(<span class="s">"Confirm"</span>, <span class="n">360</span>, <span class="n">150</span>)}
+	f.<span class="f">initializeComponent</span>()
+	<span class="k">return</span> f
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">ConfirmForm.go — две строки, которые делают её диалогом</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ConfirmForm</span>) <span class="f">btnOK_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.<span class="f">CloseWithResult</span>(goforms.DialogOK)
+}
+
+<span class="k">func</span> (f *<span class="t">ConfirmForm</span>) <span class="f">btnCancel_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.<span class="f">CloseWithResult</span>(goforms.DialogCancel)
+}</pre>
+</figure>
+
+<p>
+  <code translate="no">CloseWithResult</code> запоминает результат и дальше
+  идёт тем же путём, что обычное закрытие: <code translate="no">Closing</code>
+  по-прежнему получает право вето, а отменённое закрытие оставляет диалог
+  открытым и без записанного результата.
+</p>
+
+<h3>Чтобы это ощущалось диалогом</h3>
+
+<p>
+  Три необязательных штриха на самой форме, которые отличают диалог от просто
+  небольшого окна:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">ConfirmForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ConfirmForm</span>) <span class="f">ConfirmForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	f.<span class="f">SetFixedSize</span>(<span class="k">true</span>)      <span class="c">// без ползунка размера</span>
+	f.<span class="f">CenterOnScreen</span>()        <span class="c">// ShowDialog делает это и сам</span>
+	f.btnOK.<span class="f">SetAnchor</span>(goforms.AnchorBottom | goforms.AnchorRight)
+}</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="passing-data">
+<h2>Передача данных в обе стороны</h2>
+
+<p>
+  <code translate="no">ShowDialog</code> возвращает только
+  <code translate="no">DialogResult</code>. Всё, что богаче, едет на структуре
+  самого диалога — ровно то же, что C# делает публичным свойством, и потому
+  конструктор и поля добавляете вы.
+</p>
+
+<h4>Внутрь: аргумент конструктора</h4>
+
+<figure class="code">
+  <figcaption translate="no">EditCustomerForm.go</figcaption>
+<pre translate="no"><span class="c">// Сгенерированный NewEditCustomerForm() ничего не принимает. Добавьте</span>
+<span class="c">// свой конструктор рядом, а не правьте designer-файл — его дизайнер</span>
+<span class="c">// перегенерирует.</span>
+<span class="k">func</span> <span class="f">NewEditCustomerFormFor</span>(c <span class="t">Customer</span>) *<span class="t">EditCustomerForm</span> {
+	f := <span class="f">NewEditCustomerForm</span>()
+	f.customer = c
+	f.txtName.<span class="f">SetText</span>(c.Name)
+	f.txtEmail.<span class="f">SetText</span>(c.Email)
+	<span class="k">return</span> f
+}</pre>
+</figure>
+
+<h4>Наружу: поле, которое вызывающий читает после закрытия</h4>
+
+<figure class="code">
+  <figcaption translate="no">EditCustomerForm.go</figcaption>
+<pre translate="no"><span class="k">type</span> <span class="t">EditCustomerForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	<span class="c">// ... designer fields ...</span>
+
+	<span class="c">// Result — то, что вызывающий читает, когда ShowDialog вернул OK.</span>
+	<span class="c">// Читать безопасно тогда и только тогда: ShowDialog не вернётся,</span>
+	<span class="c">// пока форма не закрыта, так что писать в него уже некому.</span>
+	Result <span class="t">Customer</span>
+}
+
+<span class="k">func</span> (f *<span class="t">EditCustomerForm</span>) <span class="f">btnSave_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.Result = <span class="t">Customer</span>{
+		Name:  f.txtName.<span class="f">Text</span>(),
+		Email: f.txtEmail.<span class="f">Text</span>(),
+	}
+	f.<span class="f">CloseWithResult</span>(goforms.DialogOK)
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go — вызывающая сторона</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnEdit_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	selected := mf.<span class="f">selectedCustomer</span>()
+
+	<span class="k">go func</span>() {
+		dlg := <span class="f">NewEditCustomerFormFor</span>(selected)
+
+		<span class="k">if</span> dlg.<span class="f">ShowDialog</span>() == goforms.DialogOK {
+			saved := dlg.Result
+			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyCustomer</span>(saved) })
+		}
+	}()
+}</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">Читайте поле до fyne.Do, а не внутри</span>
+  <p>
+    <code translate="no">saved := dlg.Result</code> выполняется в горутине,
+    которой принадлежит <code translate="no">dlg</code>, и в UI-горутину
+    переезжает копия. Чтение <code translate="no">dlg.Result</code> изнутри
+    замыкания было бы обращением второй горутины к памяти диалога — здесь
+    практически безобидным, но это ровно та конструкция, на которую
+    <code translate="no">go test -race</code> и создан ругаться.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="swap-in-place">
+<h2>Смена вида внутри одного окна</h2>
+
+<p>
+  Иногда второе окно не нужно вовсе — нужно заменить содержимое текущего, как
+  это делает мастер или окно настроек, переходя между страницами.
+  <code translate="no">ViewContainer</code> — это оно: <code translate="no">TabControl</code>,
+  у которого полосу вкладок можно спрятать, и тогда переключением страниц
+  управляете <em>вы</em>.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">ShellForm-designer.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">initializeComponent</span>() {
+	f.<span class="f">SetClientSize</span>(<span class="n">900</span>, <span class="n">600</span>)
+
+	f.views = <span class="f">goforms.NewViewContainer</span>(<span class="n">900</span>, <span class="n">560</span>)
+	f.views.<span class="f">SetBounds</span>(<span class="n">0</span>, <span class="n">40</span>, <span class="n">900</span>, <span class="n">560</span>)
+	f.views.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorLeft |
+		goforms.AnchorRight | goforms.AnchorBottom)
+
+	<span class="c">// TabsHidden превращает его в обычный стек страниц: страницы</span>
+	<span class="c">// на месте, но полосы, по которой можно кликнуть, нет.</span>
+	f.views.<span class="f">SetTabAlignment</span>(goforms.TabsHidden)
+	f.<span class="f">AddControl</span>(f.views)
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">ShellForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">ShellForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	<span class="c">// Каждая страница — контейнер: кладите на неё контролы ровно</span>
+	<span class="c">// так же, как на Panel.</span>
+	welcome := f.views.<span class="f">AddPage</span>(<span class="s">"Welcome"</span>)
+	details := f.views.<span class="f">AddPage</span>(<span class="s">"Details"</span>)
+	f.views.<span class="f">AddPage</span>(<span class="s">"Done"</span>)
+
+	lbl := <span class="f">goforms.NewLabel</span>(<span class="s">"Step one of three."</span>)
+	lbl.<span class="f">SetBounds</span>(<span class="n">24</span>, <span class="n">24</span>, <span class="n">400</span>, <span class="n">24</span>)
+	welcome.<span class="f">AddControl</span>(lbl)
+
+	f.txtName = <span class="f">goforms.NewTextBox</span>()
+	f.txtName.<span class="f">SetBounds</span>(<span class="n">24</span>, <span class="n">24</span>, <span class="n">300</span>, <span class="n">30</span>)
+	details.<span class="f">AddControl</span>(f.txtName)
+
+	f.views.<span class="f">SetSelectedIndex</span>(<span class="n">0</span>)
+}
+
+<span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">btnNext_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.views.<span class="f">SelectNext</span>()
+}
+
+<span class="k">func</span> (f *<span class="t">ShellForm</span>) <span class="f">btnBack_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	f.views.<span class="f">SelectPrevious</span>()
+}</pre>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Метод</th><th>Что делает</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">AddPage(title)</code></td><td>Добавляет страницу и возвращает её. Полученный <code translate="no">*ViewPage</code> принимает детей как Panel.</td></tr>
+    <tr><td><code translate="no">SetSelectedIndex(i)</code></td><td>Переключает на страницу по индексу.</td></tr>
+    <tr><td><code translate="no">SelectNext()</code> / <code translate="no">SelectPrevious()</code></td><td>Шаг вперёд и назад — для кнопок мастера.</td></tr>
+    <tr><td><code translate="no">SelectedPage()</code> / <code translate="no">SelectedIndex()</code></td><td>Читает текущую страницу.</td></tr>
+    <tr><td><code translate="no">SetTabAlignment(a)</code></td><td><code translate="no">TabsTop</code>, <code translate="no">TabsBottom</code>, <code translate="no">TabsLeft</code>, <code translate="no">TabsRight</code>, <code translate="no">TabsHidden</code>. Left и right бесплатно дают навигацию сайдбаром.</td></tr>
+    <tr><td><code translate="no">SelectedIndexChanged</code></td><td>Срабатывает и на клик по вкладке, <em>и</em> на <code translate="no">SetSelectedIndex</code>, поэтому код, управляющий контейнером с ваших кнопок, видит то же событие.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Какой из трёх подходов выбрать</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Что нужно</th><th>Что использовать</th></tr></thead>
+  <tbody>
+    <tr><td>Вспомогательное окно, которое пользователь держит открытым рядом с главным</td><td>Вторая форма, <code translate="no">Show()</code></td></tr>
+    <tr><td>Ответ, без которого дальше ничего не происходит</td><td>Вторая форма, <code translate="no">ShowDialog()</code> в горутине</td></tr>
+    <tr><td>То же окно, показывающее другое содержимое</td><td><code translate="no">ViewContainer</code> с <code translate="no">TabsHidden</code></td></tr>
+    <tr><td>Страницы, между которыми выбирает сам пользователь</td><td><code translate="no">TabControl</code> или <code translate="no">ViewContainer</code> с видимой полосой</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="closing">
+<h2>Закрытие, отмена, подтверждение</h2>
+
+<p>
+  Любой путь наружу из формы — крестик, <kbd>Alt</kbd>+<kbd>F4</kbd>,
+  <code translate="no">Close()</code>,
+  <code translate="no">CloseWithResult()</code> — сначала проходит через
+  <code translate="no">Closing</code>. Один обработчик покрывает все.
+</p>
+
+<p>
+  Подтверждение закрытия — тот случай, на котором спотыкаются, потому что
+  очевидный вариант не работает: спросить пользователя внутри
+  <code translate="no">Closing</code> и дождаться ответа нельзя — ждать там
+  значит ждать в UI-горутине. Сначала наложите вето, потом спрашивайте, и
+  закройте снова, когда узнаете ответ.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">EditorForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (f *<span class="t">EditorForm</span>) <span class="f">EditorForm_Closing</span>(sender <span class="k">any</span>, e *<span class="t">goforms.CancelEventArgs</span>) {
+	<span class="k">if</span> !f.dirty || f.confirmed {
+		<span class="k">return</span> <span class="c">// терять нечего, или пользователь уже согласился</span>
+	}
+
+	<span class="c">// Остановить это закрытие, затем спросить. ShowMessageBox не</span>
+	<span class="c">// блокирует - он сообщает через колбэк - поэтому обработчик</span>
+	<span class="c">// возвращается сразу, и UI живёт, пока окно на экране.</span>
+	e.Cancel = <span class="k">true</span>
+
+	<span class="f">goforms.ShowMessageBox</span>(f.Form,
+		<span class="s">"Discard your changes?"</span>, <span class="s">"Unsaved work"</span>,
+		goforms.MessageBoxYesNo, goforms.MessageBoxQuestion,
+		<span class="k">func</span>(r <span class="t">goforms.DialogResult</span>) {
+			<span class="k">if</span> r == goforms.DialogYes {
+				f.confirmed = <span class="k">true</span>
+				f.<span class="f">Close</span>() <span class="c">// на этот раз Closing пропустит</span>
+			}
+		})
+}</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">Почему флаг, а не отписка от события</span>
+  <p>
+    У <code translate="no">Event[T]</code> нет <code translate="no">-=</code>:
+    обработчики можно добавлять, но не убирать. Булев флаг, который проверяет
+    обработчик, — это идиома, и читается он честнее: «пользователь уже
+    подтвердил» — факт о форме, а не о событии.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="messagebox">
+<h2>Сообщения и ввод строки</h2>
+
+<p>
+  Это встроенные диалоги, и у них есть общее свойство, отличающее их от
+  WinForms: <strong>ни один не блокирует</strong>. Вместо этого они сообщают
+  через колбэк — именно поэтому их можно вызывать прямо из обработчика клика,
+  ничего не заморозив.
+</p>
+
+<div class="compare">
+  <figure class="code">
+    <figcaption translate="no">C# — возвращает результат</figcaption>
+<pre translate="no"><span class="k">var</span> r = <span class="t">MessageBox</span>.<span class="f">Show</span>(<span class="k">this</span>,
+    <span class="s">"Delete this row?"</span>, <span class="s">"Confirm"</span>,
+    MessageBoxButtons.YesNo,
+    MessageBoxIcon.Question);
+
+<span class="k">if</span> (r == DialogResult.Yes)
+    <span class="f">DeleteRow</span>();</pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption translate="no">Go — сообщает через колбэк</figcaption>
+<pre translate="no"><span class="f">goforms.ShowMessageBox</span>(mf.Form,
+	<span class="s">"Delete this row?"</span>, <span class="s">"Confirm"</span>,
+	goforms.MessageBoxYesNo,
+	goforms.MessageBoxQuestion,
+	<span class="k">func</span>(r <span class="t">goforms.DialogResult</span>) {
+		<span class="k">if</span> r == goforms.DialogYes {
+			mf.<span class="f">deleteRow</span>()
+		}
+	})</pre>
+  </figure>
+</div>
+
+<p>
+  Колбэк уже выполняется в UI-горутине, поэтому может трогать контролы
+  напрямую — <code translate="no">fyne.Do</code> не нужен. Передавайте
+  <code translate="no">nil</code>, если ответ вам не важен.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Аргумент</th><th>Значения</th></tr></thead>
+  <tbody>
+    <tr><td>Кнопки</td><td><code translate="no">MessageBoxOK</code>, <code translate="no">MessageBoxOKCancel</code>, <code translate="no">MessageBoxYesNo</code></td></tr>
+    <tr><td>Значок</td><td><code translate="no">MessageBoxNone</code>, <code translate="no">MessageBoxInformation</code>, <code translate="no">MessageBoxWarning</code>, <code translate="no">MessageBoxError</code>, <code translate="no">MessageBoxQuestion</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Запросить строку текста</h3>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="f">goforms.ShowInputBox</span>(mf.Form, <span class="s">"New folder"</span>, <span class="s">"Name:"</span>,
+	<span class="k">func</span>(text <span class="k">string</span>, ok <span class="k">bool</span>) {
+		<span class="k">if</span> ok &amp;&amp; text != <span class="s">""</span> {
+			mf.<span class="f">createFolder</span>(text)
+		}
+	})</pre>
+</figure>
+
+<p>
+  <code translate="no">ok</code> равен false, когда пользователь отменил, — и
+  это не то же самое, что пустая строка. Проверяйте оба, если пустое имя для
+  вас что-то значит.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="filedialogs">
+<h2>Файлы, папки, цвета</h2>
+
+<p>
+  Файловые диалоги — это объекты, которые вы настраиваете и затем показываете,
+  по образцу <code translate="no">OpenFileDialog</code> и родственных. Как и
+  окно сообщения, отвечают через колбэк.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnOpen_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	dlg := <span class="f">goforms.NewOpenFileDialog</span>()
+	dlg.Title = <span class="s">"Open a report"</span>
+	dlg.Filter = <span class="t">goforms.FileDialogFilter</span>{
+		Description: <span class="s">"CSV files"</span>,
+		Extensions:  []<span class="k">string</span>{<span class="s">".csv"</span>},
+	}
+
+	dlg.<span class="f">Show</span>(mf.Form, <span class="k">func</span>(path <span class="k">string</span>, ok <span class="k">bool</span>) {
+		<span class="k">if</span> !ok {
+			<span class="k">return</span>
+		}
+		<span class="c">// ReadAll читает то, что диалог вернул последним, так что</span>
+		<span class="c">// переоткрывать файл по пути не нужно.</span>
+		data, err := dlg.<span class="f">ReadAll</span>()
+		<span class="k">if</span> err != <span class="k">nil</span> {
+			<span class="f">goforms.ShowMessageBox</span>(mf.Form, err.<span class="f">Error</span>(), <span class="s">"Could not read"</span>,
+				goforms.MessageBoxOK, goforms.MessageBoxError, <span class="k">nil</span>)
+			<span class="k">return</span>
+		}
+		mf.<span class="f">load</span>(data)
+	})
+}</pre>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Тип</th><th>Аналог в WinForms</th><th>Примечания</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">NewOpenFileDialog()</code></td><td><code translate="no">OpenFileDialog</code></td><td><code translate="no">ReadAll()</code> читает выбранный файл, не переоткрывая его.</td></tr>
+    <tr><td><code translate="no">NewSaveFileDialog()</code></td><td><code translate="no">SaveFileDialog</code></td><td><code translate="no">WriteAll(data)</code> пишет в выбранное место.</td></tr>
+    <tr><td><code translate="no">NewFolderBrowserDialog()</code></td><td><code translate="no">FolderBrowserDialog</code></td><td>Возвращает путь к каталогу.</td></tr>
+    <tr><td><code translate="no">NewColorDialog()</code></td><td><code translate="no">ColorDialog</code></td><td><code translate="no">Show(parent, func(c goforms.Color))</code>.</td></tr>
+    <tr><td><code translate="no">NewColorPickerButton(text, parent)</code></td><td>—</td><td>Кнопка, которая сама открывает диалог цвета. Есть в панели инструментов дизайнера.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">В песочнице возвращается хэндл, а не путь</span>
+  <p>
+    Предпочитайте <code translate="no">ReadAll</code> и
+    <code translate="no">WriteAll</code> самостоятельному переоткрытию по пути.
+    Путь, который отдаёт ОС в песочнице, не всегда тот, который вашему процессу
+    разрешено открыть второй раз.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="layout">
+<h2>Позиция, докинг, якоря</h2>
+
+<p>
+  У каждого контрола есть прямоугольник, задаваемый одним вызовом. Координаты
+  отсчитываются от того, что его содержит: контрол на Panel позиционируется от
+  левого верхнего угла панели, а не формы.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">x, y, ширина, высота</figcaption>
+<pre translate="no">btn.<span class="f">SetBounds</span>(<span class="n">20</span>, <span class="n">60</span>, <span class="n">100</span>, <span class="n">30</span>)</pre>
+</figure>
+
+<h3>Якоря — что происходит при изменении размера формы</h3>
+
+<p>
+  Якорь прибивает край контрола к тому же краю родителя. Прибейте два
+  противоположных края — и контрол растянется между ними.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Якорь</th><th>Поведение при изменении размера</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">AnchorTop | AnchorLeft</code></td><td>Остаётся на месте. Значение по умолчанию — и здесь, и в WinForms.</td></tr>
+    <tr><td><code translate="no">AnchorTop | AnchorRight</code></td><td>Едет вправо вместе с краем. Кнопки панели справа.</td></tr>
+    <tr><td><code translate="no">AnchorLeft | AnchorRight</code></td><td>Растягивается по горизонтали. Текстовые поля во всю ширину формы.</td></tr>
+    <tr><td>Все четыре</td><td>Заполняет. То, что нужно таблице или списку лога.</td></tr>
+    <tr><td><code translate="no">AnchorNone</code></td><td>Сохраняет расстояние до центра — плавает.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Докинг — прижать к краю</h3>
+
+<p>
+  Пристыкованный контрол полностью игнорирует сохранённую позицию и занимает
+  край родителя во всю ширину или высоту того, что осталось после других
+  пристыкованных соседей.
+</p>
+
+<div class="note">
+  <span class="note-title">Порядок решает, кому достанутся углы</span>
+  <p>
+    Докинг применяется в порядке добавления контролов. Добавьте верхнюю плиту
+    первой — она займёт всю ширину, и боковым достанется меньше высоты;
+    добавьте первой боковую — она возьмёт всю высоту. Правило то же, что в
+    WinForms, и именно поэтому дизайнер рисует пристыкованные контролы там, где
+    они окажутся, а не там, куда их бросили.
+  </p>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">Классическая раскладка оболочки</figcaption>
+<pre translate="no">f.toolbar.<span class="f">SetDock</span>(goforms.DockTop)     <span class="c">// во всю ширину, сверху</span>
+f.status.<span class="f">SetDock</span>(goforms.DockBottom)   <span class="c">// во всю ширину, снизу</span>
+f.tree.<span class="f">SetDock</span>(goforms.DockLeft)       <span class="c">// что осталось, вдоль края</span>
+f.content.<span class="f">SetDock</span>(goforms.DockFill)    <span class="c">// всё оставшееся</span>
+
+f.<span class="f">AddControl</span>(f.toolbar)               <span class="c">// этот порядок и есть раскладка</span>
+f.<span class="f">AddControl</span>(f.status)
+f.<span class="f">AddControl</span>(f.tree)
+f.<span class="f">AddControl</span>(f.content)</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="panels">
+<h2>Панели раскладки</h2>
+
+<p>
+  Когда арифметика надоедает, работу берут на себя четыре контейнера. Все они
+  есть в панели инструментов дизайнера, и все принимают детей ровно так же,
+  как Panel.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Панель</th><th>Как раскладывает детей</th><th>Ключевое API</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code translate="no">FlowLayoutPanel</code></td>
+      <td>В строку или колонку, с переносом по краю.</td>
+      <td><code translate="no">SetFlowDirection(FlowLeftToRight | FlowTopDown | FlowRightToLeft | FlowBottomUp)</code>, <code translate="no">SetWrapContents(bool)</code></td>
+    </tr>
+    <tr>
+      <td><code translate="no">TableLayoutPanel</code></td>
+      <td>По сетке, в порядке добавления.</td>
+      <td><code translate="no">SetColumnStyle(i, Absolute(110) | Percent(40) | AutoSize())</code>, <code translate="no">SetRowStyle</code>, <code translate="no">AddControlSpanning(c, col, row, colSpan, rowSpan)</code></td>
+    </tr>
+    <tr>
+      <td><code translate="no">SplitContainer</code></td>
+      <td>На две половины с перетаскиваемым разделителем.</td>
+      <td><code translate="no">Panel1()</code>, <code translate="no">Panel2()</code> — обе настоящие контейнеры — и <code translate="no">SetSplitterDistance(0.42)</code></td>
+    </tr>
+    <tr>
+      <td><code translate="no">ScrollBox</code></td>
+      <td>Не меняет, но прокручивает, если не помещаются.</td>
+      <td>Добавляйте детей как обычно.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">Таблица из трёх дорожек</figcaption>
+<pre translate="no">f.table.<span class="f">SetColumnStyle</span>(<span class="n">0</span>, <span class="f">goforms.Absolute</span>(<span class="n">110</span>)) <span class="c">// фиксированные 110px</span>
+f.table.<span class="f">SetColumnStyle</span>(<span class="n">1</span>, <span class="f">goforms.Percent</span>(<span class="n">40</span>))   <span class="c">// 40% от оставшегося</span>
+f.table.<span class="f">SetColumnStyle</span>(<span class="n">2</span>, <span class="f">goforms.AutoSize</span>())    <span class="c">// по ширине содержимого</span>
+
+f.table.<span class="f">AddControl</span>(cell)                       <span class="c">// заполняет ячейки по порядку</span>
+f.table.<span class="f">AddControlSpanning</span>(wide, <span class="n">0</span>, <span class="n">2</span>, <span class="n">3</span>, <span class="n">1</span>)      <span class="c">// колонка 0, строка 2, ширина 3</span></pre>
+</figure>
+
+<div class="note warn">
+  <span class="note-title">SetColumnStyle индексный — дизайнер это знает</span>
+  <p>
+    Вызовы <code translate="no">SetColumnStyle(0, …)</code> и
+    <code translate="no">SetColumnStyle(1, …)</code> говорят разное, поэтому
+    проход очистки их не трогает. Он схлопывает только сеттеры одного значения,
+    где поздний вызов действительно перекрывает ранний.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="controls">
+<h2>Каталог контролов</h2>
+
+<p>
+  Тридцать четыре типа, каждый назван по классу
+  <code translate="no">System.Windows.Forms</code>, который он замещает, — так
+  что знакомая документация WinForms продолжает работать и для имён, и для
+  свойств, и для событий.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Группа</th><th>Типы</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Обычные</td>
+      <td><code translate="no">Label</code>, <code translate="no">Button</code>, <code translate="no">TextBox</code>, <code translate="no">MaskedTextBox</code>, <code translate="no">RichTextBox</code>, <code translate="no">CheckBox</code>, <code translate="no">RadioButton</code>, <code translate="no">ComboBox</code>, <code translate="no">ListBox</code>, <code translate="no">CheckedListBox</code>, <code translate="no">PictureBox</code>, <code translate="no">ProgressBar</code>, <code translate="no">TrackBar</code>, <code translate="no">ScrollBar</code>, <code translate="no">NumericUpDown</code>, <code translate="no">DomainUpDown</code>, <code translate="no">DateTimePicker</code>, <code translate="no">MonthCalendar</code>, <code translate="no">LinkLabel</code>, <code translate="no">ColorPickerButton</code></td>
+    </tr>
+    <tr>
+      <td>Контейнеры</td>
+      <td><code translate="no">Panel</code>, <code translate="no">GroupBox</code>, <code translate="no">TabControl</code>, <code translate="no">SplitContainer</code>, <code translate="no">FlowLayoutPanel</code>, <code translate="no">TableLayoutPanel</code>, <code translate="no">ScrollBox</code>, <code translate="no">ViewContainer</code>, <code translate="no">Splitter</code></td>
+    </tr>
+    <tr>
+      <td>Меню и панели</td>
+      <td><code translate="no">MenuStrip</code>, <code translate="no">ToolStrip</code>, <code translate="no">StatusStrip</code>, <code translate="no">ContextMenu</code></td>
+    </tr>
+    <tr>
+      <td>Данные</td>
+      <td><code translate="no">DataGridView</code>, <code translate="no">ListView</code>, <code translate="no">TreeView</code></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Для ввода текста есть три конструктора, потому что
+  <code translate="no">TextBox</code> из WinForms — это три разных виджета
+  внутри: <code translate="no">NewTextBox()</code>,
+  <code translate="no">NewMultilineTextBox()</code> и
+  <code translate="no">NewPasswordTextBox()</code>.
+</p>
+
+<h3>События, которые есть у каждого контрола</h3>
+
+<p>
+  Помимо собственных событий, каждый контрол наследует набор взаимодействия от
+  <code translate="no">Control</code>. Панель событий в дизайнере рисует между
+  ними разделитель, чтобы было видно, где что.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Событие</th><th>Тип аргумента</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">Click</code>, <code translate="no">DoubleClick</code>, <code translate="no">MouseDown</code>, <code translate="no">MouseUp</code>, <code translate="no">MouseMove</code>, <code translate="no">MouseWheel</code></td><td><code translate="no">MouseEventArgs</code></td></tr>
+    <tr><td><code translate="no">KeyDown</code>, <code translate="no">KeyUp</code></td><td><code translate="no">KeyEventArgs</code></td></tr>
+    <tr><td><code translate="no">KeyPress</code></td><td><code translate="no">KeyPressEventArgs</code></td></tr>
+    <tr><td><code translate="no">MouseEnter</code>, <code translate="no">MouseLeave</code>, <code translate="no">GotFocus</code>, <code translate="no">LostFocus</code>, <code translate="no">Resize</code>, <code translate="no">Move</code>, <code translate="no">VisibleChanged</code>, <code translate="no">EnabledChanged</code></td><td><code translate="no">EventArgs</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Ошибка в типе не скомпилируется</span>
+  <p>
+    <code translate="no">Event[T].Handle</code> принимает
+    <code translate="no">EventHandler[T]</code>, поэтому обработчик с неверным
+    типом аргумента — это ошибка компиляции, а не молча не вызываемый
+    обработчик. Привязывайте события из дизайнера, и тип он подберёт сам.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="menus">
+<h2>Меню, панели, статусбар</h2>
+
+<p>
+  <code translate="no">MenuStrip</code> — это строка меню окна, она
+  привязывается к форме, а не добавляется как контрол. Остальные два —
+  обычные контролы, которые вы пристыковываете.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no"><span class="c">// Строка меню: собирается из меню и пунктов, затем отдаётся окну.</span>
+fileMenu := <span class="f">goforms.NewTopMenu</span>(<span class="s">"File"</span>,
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Open…"</span>),
+	<span class="f">goforms.NewMenuSeparator</span>(),
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Exit"</span>),
+)
+mf.<span class="f">SetMainMenu</span>(<span class="f">goforms.NewMenuStrip</span>(fileMenu))
+
+<span class="c">// Панель: контрол, пристыкованный сверху. Каждая кнопка несёт</span>
+<span class="c">// обычный func(), а не обработчик вида (sender, e).</span>
+mf.toolbar = <span class="f">goforms.NewToolStrip</span>()
+mf.toolbar.<span class="f">SetDock</span>(goforms.DockTop)
+mf.toolbar.<span class="f">AddButton</span>(<span class="s">"New"</span>, mf.tsNew_Click)
+mf.toolbar.<span class="f">AddSeparator</span>()
+mf.toolbar.<span class="f">AddButton</span>(<span class="s">"Save"</span>, mf.tsSave_Click)
+mf.<span class="f">AddControl</span>(mf.toolbar)
+
+<span class="c">// Статусбар: панели, в которые вы потом пишете текст.</span>
+mf.status = <span class="f">goforms.NewStatusStrip</span>(<span class="n">800</span>, <span class="n">24</span>)
+mf.status.<span class="f">SetDock</span>(goforms.DockBottom)
+mf.status.<span class="f">AddPanel</span>(<span class="s">"Ready"</span>)
+mf.status.<span class="f">AddPanel</span>(<span class="s">""</span>)
+mf.<span class="f">AddControl</span>(mf.status)</pre>
+</figure>
+
+<div class="note">
+  <span class="note-title">У обработчика кнопки ToolStrip нет аргументов</span>
+  <p>
+    <code translate="no">AddButton(text, func())</code> принимает голый
+    <code translate="no">func()</code>, а не форму
+    <code translate="no">(sender, e)</code>, которую использует любое другое
+    событие. Дизайнер это знает и генерирует для таких заглушку без параметров —
+    поэтому среди ваших обработчиков встретится один без аргументов.
+  </p>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">Обновление панели статусбара</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">setStatus</span>(panel <span class="k">int</span>, text <span class="k">string</span>) {
+	panels := mf.status.<span class="f">Panels</span>()
+	<span class="k">if</span> panel &lt; <span class="f">len</span>(panels) {
+		panels[panel].<span class="f">SetText</span>(text)
+	}
+}</pre>
+</figure>
+
+<h3>Контекстные меню</h3>
+
+<figure class="code">
+<pre translate="no">menu := <span class="f">goforms.NewContextMenu</span>(
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Copy"</span>),
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Paste"</span>),
+	<span class="f">goforms.NewMenuSeparator</span>(),
+	<span class="f">goforms.NewMenuItem</span>(<span class="s">"Delete"</span>),
+)
+mf.grid.<span class="f">SetContextMenu</span>(menu)</pre>
+</figure>
+
+<p>
+  Правый клик доходит до каждого контрола, включая те, на которых Fyne его
+  обычно проглатывает: GoForms кладёт поверх виджетов слой взаимодействия, а не
+  полагается на то, что каждый виджет перешлёт событие сам.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="timer">
+<h2>Таймеры и фоновая работа</h2>
+
+<p>
+  <code translate="no">Timer</code> повторяет
+  <code translate="no">System.Windows.Forms.Timer</code>: тикает в UI-горутине,
+  поэтому его обработчик может трогать контролы напрямую.
+</p>
+
+<figure class="code">
+<pre translate="no">mf.clock = <span class="f">goforms.NewTimer</span>(<span class="n">1000</span>)  <span class="c">// интервал в миллисекундах</span>
+mf.clock.Tick.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.<span class="f">setStatus</span>(<span class="n">1</span>, <span class="f">time.Now</span>().<span class="f">Format</span>(<span class="s">"15:04:05"</span>))
+})
+mf.clock.<span class="f">Start</span>()
+
+<span class="c">// Остановите его, когда форма закрывается, иначе он продолжит</span>
+<span class="c">// тикать по контролам, которых уже нет.</span>
+mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.clock.<span class="f">Stop</span>()
+})</pre>
+</figure>
+
+<p>
+  Таймер — для периодической работы с интерфейсом. Для одной долгой операции
+  берите горутину и <code translate="no">fyne.Do</code>, как в разделе
+  <a href="#ui-thread">Правило UI-потока</a>: таймер, сработавший, пока
+  предыдущий тик ещё выполняется, встанет за ним в очередь.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-basics">
+<h2>Дизайнер: холст и выделение</h2>
+
+<p>
+  Откройте любой <code translate="no">*-designer.go</code> — вместо текстового
+  редактора откроется дизайнер. <strong>GoForms: Open as Text</strong>
+  переключает на исходник, а кнопка в заголовке вкладки возвращает обратно.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Жест</th><th>Что делает</th></tr></thead>
+  <tbody>
+    <tr><td>Перетащить контрол</td><td>Двигает его. Края привязываются к левому, правому краю и центру соседей, а в месте совпадения рисуется направляющая.</td></tr>
+    <tr><td>Потянуть угловой ползунок</td><td>Меняет размер. Ползунок появляется только у выделенного контрола.</td></tr>
+    <tr><td>Потянуть правый или нижний край формы</td><td>Меняет её ширину или высоту. Краевой ползунок двигает только свою ось.</td></tr>
+    <tr><td>Потянуть угол формы</td><td>Меняет обе сразу.</td></tr>
+    <tr><td>Клик с <kbd>Ctrl</kbd> или <kbd>Shift</kbd></td><td>Расширяет выделение. Перетаскивание любого участника двигает всю группу.</td></tr>
+    <tr><td>Клик по фону формы или её заголовку, клик рядом с формой или <kbd>Escape</kbd></td><td>Выделяет саму форму — её заголовок и размер появляются в панели свойств.</td></tr>
+    <tr><td>Перетащить из панели инструментов</td><td>Добавляет контрол. Бросьте на контейнер, чтобы он стал его дочерним.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">Escape — надёжный путь обратно к форме</span>
+  <p>
+    Клик по фону работает только пока фон есть, а у формы, закрытой
+    пристыкованным контролом от края до края, его нет. <kbd>Escape</kbd> не
+    требует никуда попадать и работает на любой форме. Во время набора в поле
+    свойства он отдаётся полю — как и ожидается.
+  </p>
+  <p>
+    У формы крупнее видимой области холста ползунки уезжают за прокрутку.
+    Выделите форму и введите числа в <strong>Width</strong> и
+    <strong>Height</strong>.
+  </p>
+</div>
+
+<h3>Холст показывает, что произойдёт на самом деле</h3>
+
+<p>
+  Пристыкованные контролы рисуются прижатыми к краю родителя, а не по
+  координатам, куда их бросили, потому что холст выполняет тот же проход
+  раскладки, что и фреймворк. Ширины колонок таблицы приходят из того же кода
+  подгонки, что работает в рантайме. Если холст и запущенное приложение
+  расходятся — это баг, о котором стоит сообщить, а не то, что надо обходить.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-props">
+<h2>Свойства и события</h2>
+
+<h3>Панель свойств</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Группа</th><th>Что правит</th></tr></thead>
+  <tbody>
+    <tr><td>Name</td><td>Переименовывает поле структуры, все ссылки на него <em>и</em> любой обработчик, названный по нему, — в обоих файлах. Недопустимые имена отвергаются, а не применяются наполовину.</td></tr>
+    <tr><td>Parent</td><td>Переносит контрол в другой контейнер, включая половину <code translate="no">SplitContainer</code> или конкретную вкладку.</td></tr>
+    <tr><td>Bounds</td><td>X, Y, ширина, высота.</td></tr>
+    <tr><td>Text / Items / Columns</td><td>Подпись или список, который несёт <code translate="no">ComboBox</code>, <code translate="no">ListBox</code>, <code translate="no">ListView</code> либо <code translate="no">DataGridView</code>.</td></tr>
+    <tr><td>Collection</td><td>Заголовки вкладок, кнопки ToolStrip, панели StatusStrip, узлы дерева — со своим редактором на каждый тип, включая поле обработчика клика для кнопок ToolStrip.</td></tr>
+    <tr><td>Properties</td><td>Каждый известный каталогу сеттер, с редактором по типу: чекбокс для булевых, счётчик для чисел, выпадающий список для перечислений, ряд чекбоксов для наборов флагов вроде <code translate="no">Anchor</code>.</td></tr>
+    <tr><td>Align</td><td>Появляется при выделении больше одного контрола: выровнять по левому, правому, верхнему, нижнему краю, по центру по горизонтали или вертикали, одинаковая ширина, одинаковая высота. Всё выравнивается по <em>последнему кликнутому</em> контролу — как в WinForms.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Панель событий</h3>
+
+<p>
+  Каждый контрол сначала перечисляет свои события, затем унаследованные от
+  <code translate="no">Control</code>, с разделителем между ними. Введите имя
+  или примите предложенное <code translate="no">&lt;id&gt;_&lt;Event&gt;</code>,
+  нажмите <strong>Wire</strong> — и произойдут сразу три вещи:
+</p>
+
+<ol>
+  <li>
+    В парном рукописном файле создаётся заглушка с правильным типом
+    аргумента — <code translate="no">e goforms.MouseEventArgs</code> для
+    <code translate="no">Click</code>, <code translate="no">e goforms.KeyEventArgs</code>
+    для <code translate="no">KeyDown</code> — с полным квалификатором, и импорт
+    <code translate="no">goforms</code> добавляется, если его в файле не было.
+  </li>
+  <li>
+    Вызов <code translate="no">Handle</code> пишется в
+    <code translate="no">initializeComponent</code>. Повторная привязка
+    <em>переписывает</em> эту строку, а не добавляет вторую:
+    <code translate="no">Event.Handle</code> — multicast, поэтому дописанный
+    вызов оставил бы работать оба обработчика.
+  </li>
+  <li>
+    Курсор ставится внутрь новой заглушки.
+  </li>
+</ol>
+
+<p>
+  <strong>Go to</strong> рядом с уже привязанным событием прыгает к его
+  определению, где бы оно ни было.
+</p>
+
+<div class="note">
+  <span class="note-title">Куда попадёт заглушка</span>
+  <p>
+    Сначала парный файл — <code translate="no">Foo-designer.go</code> парен с
+    <code translate="no">Foo.go</code>. Если его нет — другой
+    <code translate="no">.go</code> в том же каталоге, где уже объявлен тип
+    получателя; если и такого нет — первый по алфавиту не-designer файл; а если
+    в каталоге вообще ничего нет, парный файл создаётся с нуля, вместе с
+    объявлением пакета и импортом.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-commands">
+<h2>Команды и горячие клавиши</h2>
+
+<p>
+  Всё перечисленное — в палитре команд
+  (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, затем наберите «GoForms»).
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+  <tbody>
+    <tr><td><strong>GoForms: Create New Project…</strong></td><td>Создаёт приложение — <code translate="no">go.mod</code>, <code translate="no">main.go</code>, <code translate="no">MainForm</code> — из пустого шаблона или из примера. Спрашивает, брать ли опубликованный модуль или локальный чекаут (по умолчанию опубликованный, ему ничего не нужно на диске) и как проект должен выглядеть: стандартный вид, светлая или тёмная схема, либо пустая тема.</td></tr>
+    <tr><td><strong>GoForms: New Form…</strong></td><td>Добавляет пару <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> в любую папку. Есть и в контекстном меню папки в проводнике.</td></tr>
+    <tr><td><strong>GoForms: Open Visual Designer</strong></td><td>Открывает дизайнер для текущего файла.</td></tr>
+    <tr><td><strong>GoForms: Open as Text</strong></td><td>Обратное действие — обычный исходник на Go.</td></tr>
+    <tr><td><strong>GoForms: Tidy Designer File</strong></td><td>Запускает проход очистки вручную. Дизайнер делает это после каждой своей правки, так что команда нужна для файлов, изменённых вне него.</td></tr>
+    <tr><td><strong>GoForms: Edit Theme</strong></td><td>Открывает <code translate="no">&lt;проект&gt;-styles.go</code> как визуальный редактор тем. Находит файл сам и спрашивает, только если их несколько.</td></tr>
+    <tr><td><strong>GoForms: Open Theme as Text</strong></td><td>Обратное действие — файл стилей как обычный Go.</td></tr>
+    <tr><td><strong>GoForms: Check Setup</strong></td><td>Какой <code translate="no">go</code> найден и где искали, собирается ли и отвечает ли вспомогательный CLI, где лежит чекаут фреймворка. Начинайте отсюда, когда что-то не работает.</td></tr>
+    <tr><td><strong>GoForms: Set Framework Path…</strong></td><td>Указывает на локальный чекаут GoForms — для проектов, которые собираются против него.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Клавиша</th><th>В дизайнере</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>Delete</kbd></td><td>Удаляет выделенное.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Отменить.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Повторить.</td></tr>
+    <tr><td>Клик с <kbd>Ctrl</kbd> / <kbd>Shift</kbd></td><td>Расширяет выделение.</td></tr>
+    <tr><td><kbd>Escape</kbd></td><td>Выделяет форму, уводя из свойств контрола.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="note-title">У дизайнера свой стек отмены</span>
+  <p>
+    Он правит файл через вспомогательный процесс, который пишет на диск
+    напрямую, поэтому редакторская отмена этих изменений не видит.
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> <em>внутри дизайнера</em> шагает по его
+    снимкам. <kbd>Ctrl</kbd>+<kbd>Z</kbd> в текстовом редакторе отменяет то,
+    что вы набрали там, — это другая история.
+  </p>
+</div>
+
+<h3>Настройки</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Настройка</th><th>Значение</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">goforms.goPath</code></td><td>Полный путь к исполняемому <code translate="no">go</code> — на случай, когда редактор не может его найти. GUI-редактор наследует <code translate="no">PATH</code> сессии рабочего стола, а не тот, который строит ваш шелл, поэтому Go в <code translate="no">/usr/local/go/bin</code> или под управлением asdf/mise ему часто не виден.</td></tr>
+    <tr><td><code translate="no">goforms.frameworkPath</code></td><td>Локальный чекаут GoForms — используется, когда новый проект решает собираться против него.</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-theme">
+<h2>Редактор тем</h2>
+
+<p>
+  Весь вид приложения — это один литерал <code translate="no">goforms.Theme</code>:
+  одиннадцать цветов и четыре метрики, переданные в
+  <code translate="no">goforms.SetTheme</code> до создания любой формы. Каждое
+  пропущенное поле оставляет дефолт Fyne для этого свойства — именно поэтому
+  тема может поменять один цвет, не перечисляя остальные десять.
+</p>
+
+<p>
+  <strong>GoForms: Edit Theme</strong> открывает этот файл —
+  <code translate="no">&lt;проект&gt;-styles.go</code> рядом с
+  <code translate="no">main.go</code> — как визуальный редактор: пикер и
+  hex-поле на каждый цвет, числа для метрик и превью рядом.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">myapp-styles.go</figcaption>
+<pre translate="no"><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">func</span> <span class="f">Theme</span>() <span class="t">goforms.Theme</span> {
+	<span class="k">return</span> <span class="t">goforms.Theme</span>{
+		Name:            <span class="s">"Midnight"</span>,
+		Dark:            <span class="k">true</span>,
+		Background:      <span class="f">goforms.RGB</span>(<span class="n">0x1E</span>, <span class="n">0x1F</span>, <span class="n">0x22</span>),
+		Foreground:      <span class="f">goforms.RGB</span>(<span class="n">0xE6</span>, <span class="n">0xE7</span>, <span class="n">0xEA</span>),
+		Primary:         <span class="f">goforms.RGB</span>(<span class="n">0x4C</span>, <span class="n">0x97</span>, <span class="n">0xFF</span>),
+		Selection:       <span class="f">goforms.RGBA</span>(<span class="n">0x4C</span>, <span class="n">0x97</span>, <span class="n">0xFF</span>, <span class="n">0x40</span>),
+		Padding:         <span class="n">6</span>,
+	}
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">main.go</figcaption>
+<pre translate="no"><span class="f">goforms.NewApplication</span>(<span class="s">"com.example.myapp"</span>)
+<span class="f">goforms.SetTheme</span>(<span class="f">Theme</span>())   <span class="c">// до того, как появится хоть одна форма</span>
+
+<span class="f">goforms.Run</span>(<span class="f">mainform.NewMainForm</span>().Form)</pre>
+</figure>
+
+<h3>Незаданное — это выбор, а не пустота</h3>
+
+<p>
+  У каждой строки есть кнопка сброса к дефолту Fyne, а незаданный цвет всё
+  равно рисуется в превью тем значением, к которому проваливается, — так что
+  превью показывает, как тема будет выглядеть на самом деле, а не только то,
+  что она задаёт. Поле, содержащее выражение вместо литерала — например, цвет
+  из вашей константы, — показывается только для чтения: редактор не станет
+  схлопывать решение, причины которого не видит.
+</p>
+
+<div class="note">
+  <span class="note-title">Hex-поле — не удобство</span>
+  <p>
+    У <code translate="no">&lt;input type="color"&gt;</code> нет альфа-канала,
+    поэтому ввод <code translate="no">#4c97ff40</code> в поле рядом с пикером —
+    единственный способ получить полупрозрачный цвет, которого
+    <code translate="no">Selection</code> обычно и хочет.
+  </p>
+</div>
+
+<h3>Задать тему без редактора</h3>
+
+<p>
+  Ничего особенного в нём нет. Это обычный Go, поэтому тему можно собрать на
+  месте, прочитать из конфига или переключить в рантайме —
+  <code translate="no">SetTheme</code> перекрашивает и уже открытые формы, и все
+  созданные позже.
+</p>
+
+<figure class="code">
+<pre translate="no"><span class="c">// Взять встроенную и поменять одну вещь.</span>
+t := <span class="f">goforms.DarkTheme</span>()
+t.Primary = <span class="f">goforms.RGB</span>(<span class="n">0xE0</span>, <span class="n">0x4C</span>, <span class="n">0x2E</span>)
+<span class="f">goforms.SetTheme</span>(t)
+
+<span class="c">// Или прочитать действующую.</span>
+<span class="k">if</span> <span class="f">goforms.CurrentTheme</span>().Dark {
+	<span class="c">// ...</span>
+}</pre>
+</figure>
+
+<h3>Стиль одного контрола или одной формы</h3>
+
+<p>
+  Тема действует на всё приложение. Для чего-то более узкого есть
+  <code translate="no">Style</code> — шрифт, цвет текста и цвет фона в одной
+  связке — и отдельные сеттеры.
+</p>
+
+<figure class="code">
+<pre translate="no">accent := <span class="t">goforms.Style</span>{
+	Font:      <span class="f">goforms.NewFont</span>(<span class="s">""</span>, <span class="n">14</span>, <span class="k">true</span>, <span class="k">false</span>),
+	ForeColor: <span class="f">goforms.RGB</span>(<span class="n">90</span>, <span class="n">170</span>, <span class="n">255</span>),
+}
+
+btn.<span class="f">SetStyle</span>(accent)      <span class="c">// один контрол</span>
+panel.<span class="f">ApplyStyle</span>(accent)  <span class="c">// дети контейнера, рекурсивно</span>
+form.<span class="f">ApplyStyle</span>(accent)   <span class="c">// все контролы формы</span>
+
+lbl.<span class="f">SetForeColor</span>(<span class="f">goforms.RGB</span>(<span class="n">90</span>, <span class="n">170</span>, <span class="n">255</span>))  <span class="c">// или по одному</span>
+panel.<span class="f">SetBackColor</span>(<span class="f">goforms.RGB</span>(<span class="n">60</span>, <span class="n">110</span>, <span class="n">180</span>))</pre>
+</figure>
+
+<p>
+  <code translate="no">nil</code>-цвет или нулевой
+  <code translate="no">Font</code> внутри <code translate="no">Style</code>
+  означают «не трогать», поэтому Style может менять только то, что ему нужно.
+</p>
+
+<div class="note warn">
+  <span class="note-title">Font.Family запоминается, но применяется не везде</span>
+  <p>
+    Размер, жирность и курсив работают везде. Семейство применяется только
+    там, где контрол рисует свой текст сам; встроенные виджеты Fyne рисуют
+    шрифтом темы и не дают задать семейство поштучно. Это ограничение тулкита,
+    а не упущение здесь.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-tidy">
+<h2>Что убирает очистка</h2>
+
+<p>
+  Designer-файл управляется машиной, и долгая сессия оставляет в нём операторы,
+  которые уже ничего не значат: сеттер, записанный на каждое перетаскивание,
+  событие, перепривязанное в стопку вызовов <code translate="no">Handle</code>,
+  контрол, добавленный в два контейнера. В дизайнере этого не видно — модель
+  отражает только последнее значение каждого — поэтому мусор копится незаметно.
+</p>
+
+<p>
+  Поэтому каждая правка заканчивается проходом очистки. Он убирает:
+</p>
+
+<ul>
+  <li>вызовы сеттеров, которые уже перекрыты более поздним вызовом;</li>
+  <li>все привязки события, кроме последней;</li>
+  <li>повторные <code translate="no">AddControl</code> одного и того же контрола;</li>
+  <li>дублирующиеся объявления полей структуры;</li>
+  <li>строки целиком, состоящие из закомментированного сгенерированного оператора.</li>
+</ul>
+
+<p>
+  За всеми пятью стоит одно правило: два оператора, утверждающие один и тот же
+  факт, — это два ответа на один вопрос, и наблюдаемым может быть только
+  последний. Поэтому последний остаётся, а ранние уходят.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-limits">
+<h2>Что дизайнер не тронет</h2>
+
+<p>
+  Этой части стоит доверять — именно она делает безопасной ручную правку
+  designer-файла.
+</p>
+
+<p>
+  <strong>Переписываются только операторы, которые описаны в каталоге.</strong>
+  <code translate="no">Timer</code>, <code translate="no">MenuStrip</code>,
+  цикл, вызов вашего кода, вспомогательная функция — всё, что инструмент не
+  распознаёт, остаётся ровно на месте, и при правке, и при очистке.
+</p>
+
+<p>
+  Конкретно:
+</p>
+
+<ul>
+  <li>
+    <strong>Вызовы добавления элементов не схлопываются никогда.</strong>
+    <code translate="no">AddTab("Page")</code> дважды — это две вкладки с
+    одинаковым заголовком, а не одна строка, написанная дважды.
+  </li>
+  <li>
+    <strong>Индексные сеттеры не схлопываются никогда.</strong>
+    <code translate="no">SetColumnStyle(0, …)</code> и
+    <code translate="no">SetColumnStyle(1, …)</code> говорят разное.
+  </li>
+  <li>
+    <strong>Заголовок формы, не являющийся строковым литералом, отвергается.</strong>
+    Если у вас он приходит из константы или вызова функции, дизайнер сообщит об
+    этом, а не заменит выражение литералом.
+  </li>
+  <li>
+    <strong>Нераспознанный тип контрола показывается только для чтения.</strong>
+    Он появляется на холсте и в панели свойств, чтобы вы его видели, но ничего
+    в нём не переписывается.
+  </li>
+  <li>
+    <strong>Каждая правка атомарна.</strong> Если хоть одна часть пакета не
+    применилась, файл возвращается ровно к тому, чем был.
+  </li>
+  <li>
+    <strong>Очистка, после которой файл перестал бы разбираться, отменяется</strong>,
+    а не записывается.
+  </li>
+</ul>
+
+<p>
+  Designer-файл можно свободно править руками. Ожидайте, что его прогонят
+  через gofmt и что всё действительно лишнее уберут при следующем сохранении
+  из дизайнера.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="csharp-map">
+<h2>C# и Go рядом</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>WinForms</th><th>GoForms</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">class MainForm : Form</code></td><td><code translate="no">type MainForm struct { *goforms.Form }</code></td></tr>
+    <tr><td><code translate="no">this</code></td><td><code translate="no">mf.Form</code>, где ожидается <code translate="no">*Form</code></td></tr>
+    <tr><td><code translate="no">Location</code> + <code translate="no">Size</code></td><td><code translate="no">SetBounds(x, y, w, h)</code></td></tr>
+    <tr><td><code translate="no">btn.Click += Handler</code></td><td><code translate="no">btn.Click.Handle(handler)</code></td></tr>
+    <tr><td><code translate="no">void H(object s, EventArgs e)</code></td><td><code translate="no">func H(sender any, e goforms.EventArgs)</code></td></tr>
+    <tr><td><code translate="no">Controls.Add(c)</code></td><td><code translate="no">AddControl(c)</code></td></tr>
+    <tr><td><code translate="no">form.Show()</code></td><td><code translate="no">form.Show()</code></td></tr>
+    <tr><td><code translate="no">form.ShowDialog()</code></td><td><code translate="no">form.ShowDialog()</code> — <strong>из горутины</strong></td></tr>
+    <tr><td><code translate="no">DialogResult = OK; Close()</code></td><td><code translate="no">CloseWithResult(goforms.DialogOK)</code></td></tr>
+    <tr><td><code translate="no">MessageBox.Show(...)</code> возвращает значение</td><td><code translate="no">ShowMessageBox(..., func(r DialogResult))</code> вызывает колбэк</td></tr>
+    <tr><td><code translate="no">e.Cancel = true</code> в <code translate="no">FormClosing</code></td><td>то же самое, на <code translate="no">*goforms.CancelEventArgs</code></td></tr>
+    <tr><td><code translate="no">Invoke</code> / <code translate="no">BeginInvoke</code></td><td><code translate="no">fyne.Do(func(){ … })</code></td></tr>
+    <tr><td><code translate="no">Anchor = Top | Right</code></td><td><code translate="no">SetAnchor(goforms.AnchorTop | goforms.AnchorRight)</code></td></tr>
+    <tr><td><code translate="no">Dock = DockStyle.Fill</code></td><td><code translate="no">SetDock(goforms.DockFill)</code></td></tr>
+    <tr><td><code translate="no">Application.Run(new MainForm())</code></td><td><code translate="no">goforms.Run(NewMainForm().Form)</code></td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="gotchas">
+<h2>Грабли, о которых стоит знать</h2>
+
+<h3>ShowDialog из обработчика даёт дедлок</h3>
+<p>
+  Самая дорогая по времени, потому что ошибки нет — окно просто встаёт.
+  См. <a href="#ui-thread">Правило UI-потока</a>. Если форма замирает на клике,
+  сначала читайте обработчик этого клика.
+</p>
+
+<h3><code translate="no">.Handle</code> добавляет, но никогда не заменяет</h3>
+<p>
+  Привязали тот же обработчик дважды — он выполнится дважды, а
+  <code translate="no">-=</code> не существует. В designer-файле об этом
+  позаботились: повторная привязка переписывает строку. Но код, который
+  привязывает события в цикле или в методе, способном выполниться не один раз,
+  будет накапливать обработчики.
+</p>
+
+<h3>Работайте в <code translate="no">Load</code>, а не в конструкторе</h3>
+<p>
+  <code translate="no">NewMainForm()</code> возвращается до того, как окно
+  появится. Заполнение списков, измерения и вообще всё, что трогает окно, —
+  в обработчик <code translate="no">Load</code>.
+</p>
+
+<h3>Пристыкованный контрол игнорирует свои границы</h3>
+<p>
+  <code translate="no">SetBounds</code> на контроле, у которого
+  <code translate="no">Dock</code> отличен от <code translate="no">DockNone</code>,
+  не меняет ничего видимого — это правильное поведение, такое же, как в
+  WinForms. Если контрол не двигается, проверьте его Dock.
+</p>
+
+<h3>Порядок докинга — это порядок добавления</h3>
+<p>
+  Два пристыкованных соседа спорят за угол, и выигрывает добавленный первым.
+  Поменять победителя можно, переставив вызовы
+  <code translate="no">AddControl</code>.
+</p>
+
+<h3>Координаты ребёнка отсчитываются от родителя</h3>
+<p>
+  Контрол в <code translate="no">(0, 0)</code> на Panel сидит в левом верхнем
+  углу панели, а не формы. Перенос контрола между контейнерами в дизайнере
+  сохраняет его позицию внутри нового родителя — обычно это то, чего вы хотите,
+  и изредка неожиданно.
+</p>
+
+<h3>Сгенерированный designer-файл — не место для логики</h3>
+<p>
+  Он перегенерируется. Всё, что не описано в каталоге, выживает, но класть
+  туда бизнес-логику — значит бороться с инструментом: второй файл существует
+  ровно для того, чтобы этого не приходилось делать.
+</p>
+
+<h3>Останавливайте таймеры в <code translate="no">Closed</code></h3>
+<p>
+  Таймер переживает форму, которая его создала, и продолжает бить по
+  контролам, которых уже нет.
+</p>
+
+<h3>Читайте результат диалога до перехода между горутинами</h3>
+<p>
+  Скопируйте нужное из диалога в той горутине, которой он принадлежит, и
+  передавайте копию в <code translate="no">fyne.Do</code> — см.
+  <a href="#passing-data">Передача данных в обе стороны</a>.
+</p>
+</section>
+
+<section>
+<h2>Куда дальше</h2>
+<ul>
+  <li><a href="https://github.com/Go-Forms/GoFormsShowcase">GoFormsShowcase</a> — по форме на тему с живым логом событий. Любое утверждение с этой страницы можно проверить запуском.</li>
+  <li><a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочная документация</a> — контролы, раскладка, события и дизайнер, подробнее по каждой теме.</li>
+  <li><a href="https://github.com/Go-Forms/GoForms/issues">Issues</a> — если что-то здесь окажется неверным.</li>
+</ul>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>GoForms — под лицензией MIT.</span>
+    <nav>
+      <a href="index.html">Главная</a>
+      <a href="guide.html">Руководство</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
+      <a href="https://github.com/Go-Forms">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// Highlights the section currently on screen in the sidebar. Progressive
+// enhancement: without it every link still works, the current one is just
+// not marked.
+(function () {
+	var links = Array.prototype.slice.call(document.querySelectorAll('.doc-nav a[href^="#"]'));
+	if (!links.length || !('IntersectionObserver' in window)) return;
+
+	var byId = {};
+	links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+
+	var visible = new Set();
+	var observer = new IntersectionObserver(function (entries) {
+		entries.forEach(function (entry) {
+			if (entry.isIntersecting) visible.add(entry.target.id);
+			else visible.delete(entry.target.id);
+		});
+		// The topmost visible section wins, so scrolling up and down both
+		// land on the heading actually being read.
+		var current = null;
+		Object.keys(byId).forEach(function (id) {
+			if (current === null && visible.has(id)) current = id;
+		});
+		links.forEach(function (a) {
+			a.classList.toggle('current', a.getAttribute('href') === '#' + current);
+		});
+	}, { rootMargin: '-70px 0px -70% 0px' });
+
+	Object.keys(byId).forEach(function (id) {
+		var section = document.getElementById(id);
+		if (section) observer.observe(section);
+	});
+})();
+</script>
+
+</body>
+</html>
