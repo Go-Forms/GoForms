@@ -1,0 +1,63 @@
+# Cuts a GitHub release for a tag.
+#
+# The tag is what actually publishes the module - Go's proxy resolves
+# `github.com/Go-Forms/GoForms@vX.Y.Z` from it directly, with no release
+# object involved. This exists so the tag also has somewhere to carry notes,
+# and so a broken tag is caught before anyone depends on it.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Fyne's build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            gcc pkg-config libgl1-mesa-dev xorg-dev libxkbcommon-dev \
+            libwayland-dev libegl1-mesa-dev xvfb
+
+      - name: Verify the tag builds and passes
+        run: |
+          go build ./...
+          go vet ./...
+          xvfb-run -a go test ./...
+
+      # A module whose path does not match where it lives cannot be fetched at
+      # all, and the error a consumer sees names their project rather than
+      # this one. Checking it here keeps that from reaching a tag.
+      - name: Check the module path
+        run: |
+          want="github.com/${GITHUB_REPOSITORY}"
+          got=$(go list -m)
+          if [ "$got" != "$want" ]; then
+            echo "::error::go.mod declares $got but the repository is $want"
+            exit 1
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          generate_release_notes: true
+          body: |
+            ```
+            go get ${{ github.repository }}@${{ github.ref_name }}
+            ```
