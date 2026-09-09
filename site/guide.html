@@ -58,6 +58,7 @@
   <a href="#designer-basics">Canvas and selection</a>
   <a href="#designer-props">Properties and events</a>
   <a href="#designer-commands">Commands and shortcuts</a>
+  <a href="#designer-theme">The theme editor</a>
   <a href="#designer-tidy">What tidy removes</a>
   <a href="#designer-limits">What it will not touch</a>
 
@@ -1356,11 +1357,13 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
 <table>
   <thead><tr><th>Command</th><th>Does</th></tr></thead>
   <tbody>
-    <tr><td><strong>GoForms: Create New Project…</strong></td><td>Scaffolds an app — <code translate="no">go.mod</code>, <code translate="no">main.go</code>, a <code translate="no">MainForm</code> — from an empty or an example template. Asks whether to use the published module or a local checkout; the published module is the default and needs nothing on disk.</td></tr>
+    <tr><td><strong>GoForms: Create New Project…</strong></td><td>Scaffolds an app — <code translate="no">go.mod</code>, <code translate="no">main.go</code>, a <code translate="no">MainForm</code> — from an empty or an example template. Asks whether to use the published module or a local checkout (the published module is the default and needs nothing on disk), and how the project should look: the default, a light or dark scheme, or an empty theme.</td></tr>
     <tr><td><strong>GoForms: New Form…</strong></td><td>Adds a <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> pair to any folder. Also on the Explorer's folder right-click menu.</td></tr>
     <tr><td><strong>GoForms: Open Visual Designer</strong></td><td>Opens the designer for the current file.</td></tr>
     <tr><td><strong>GoForms: Open as Text</strong></td><td>The inverse — the plain Go source.</td></tr>
     <tr><td><strong>GoForms: Tidy Designer File</strong></td><td>Runs the cleanup pass by hand. The designer does it after every edit of its own, so this is for files edited outside it.</td></tr>
+    <tr><td><strong>GoForms: Edit Theme</strong></td><td>Opens the project's <code translate="no">&lt;project&gt;-styles.go</code> as a visual theme editor. Finds the file itself, and asks only if there is more than one.</td></tr>
+    <tr><td><strong>GoForms: Open Theme as Text</strong></td><td>The inverse — the styles file as plain Go.</td></tr>
     <tr><td><strong>GoForms: Check Setup</strong></td><td>Which <code translate="no">go</code> was found and everywhere it looked, whether the helper CLI builds and answers, and where the framework checkout is. Start here when something does not work.</td></tr>
     <tr><td><strong>GoForms: Set Framework Path…</strong></td><td>Points at a local GoForms checkout, for projects that build against one.</td></tr>
   </tbody>
@@ -1401,6 +1404,133 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><code translate="no">goforms.frameworkPath</code></td><td>A local GoForms checkout, used when a new project opts to build against one.</td></tr>
   </tbody>
 </table>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-theme">
+<h2>The theme editor</h2>
+
+<p>
+  A project's whole look is one <code translate="no">goforms.Theme</code>
+  literal: eleven colours and four metrics, handed to
+  <code translate="no">goforms.SetTheme</code> before any form is created.
+  Every field left out keeps Fyne's default for that property, which is what
+  lets a theme change one colour without restating the other ten.
+</p>
+
+<p>
+  <strong>GoForms: Edit Theme</strong> opens that file —
+  <code translate="no">&lt;project&gt;-styles.go</code>, beside
+  <code translate="no">main.go</code> — as a visual editor: a picker and a hex
+  box per colour, numbers for the metrics, and a preview beside them.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">myapp-styles.go</figcaption>
+<pre translate="no"><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">func</span> <span class="f">Theme</span>() <span class="t">goforms.Theme</span> {
+	<span class="k">return</span> <span class="t">goforms.Theme</span>{
+		Name:            <span class="s">"Midnight"</span>,
+		Dark:            <span class="k">true</span>,
+		Background:      <span class="f">goforms.RGB</span>(<span class="n">0x1E</span>, <span class="n">0x1F</span>, <span class="n">0x22</span>),
+		Foreground:      <span class="f">goforms.RGB</span>(<span class="n">0xE6</span>, <span class="n">0xE7</span>, <span class="n">0xEA</span>),
+		Primary:         <span class="f">goforms.RGB</span>(<span class="n">0x4C</span>, <span class="n">0x97</span>, <span class="n">0xFF</span>),
+		Selection:       <span class="f">goforms.RGBA</span>(<span class="n">0x4C</span>, <span class="n">0x97</span>, <span class="n">0xFF</span>, <span class="n">0x40</span>),
+		Padding:         <span class="n">6</span>,
+	}
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">main.go</figcaption>
+<pre translate="no"><span class="f">goforms.NewApplication</span>(<span class="s">"com.example.myapp"</span>)
+<span class="f">goforms.SetTheme</span>(<span class="f">Theme</span>())   <span class="c">// before any form exists</span>
+
+<span class="f">goforms.Run</span>(<span class="f">mainform.NewMainForm</span>().Form)</pre>
+</figure>
+
+<h3>Unset is a choice, not a blank</h3>
+
+<p>
+  Every row has a clear button that returns the field to Fyne's default, and
+  an unset colour is still drawn in the preview as the default it falls
+  through to — so the preview shows what the theme will actually look like,
+  not only the parts it sets. A field holding an expression rather than a
+  literal, like a colour from one of your own constants, is shown read-only:
+  the editor will not flatten a decision it cannot see the reason for.
+</p>
+
+<div class="note">
+  <span class="note-title">The hex box is not a convenience</span>
+  <p>
+    <code translate="no">&lt;input type="color"&gt;</code> has no alpha
+    channel, so typing <code translate="no">#4c97ff40</code> into the box
+    beside the picker is the only way to get a translucent colour — which
+    <code translate="no">Selection</code> usually wants.
+  </p>
+</div>
+
+<h3>Setting a theme without the editor</h3>
+
+<p>
+  Nothing about it is special. It is ordinary Go, so it can be built inline,
+  read from a config file, or switched at runtime — <code translate="no">SetTheme</code>
+  restyles every form that is already open as well as any created later.
+</p>
+
+<figure class="code">
+<pre translate="no"><span class="c">// Start from one of the built-ins and change one thing.</span>
+t := <span class="f">goforms.DarkTheme</span>()
+t.Primary = <span class="f">goforms.RGB</span>(<span class="n">0xE0</span>, <span class="n">0x4C</span>, <span class="n">0x2E</span>)
+<span class="f">goforms.SetTheme</span>(t)
+
+<span class="c">// Or read the one in force.</span>
+<span class="k">if</span> <span class="f">goforms.CurrentTheme</span>().Dark {
+	<span class="c">// ...</span>
+}</pre>
+</figure>
+
+<h3>Styling one control, or one form</h3>
+
+<p>
+  A theme is application-wide. For anything narrower there is
+  <code translate="no">Style</code> — a font, a foreground and a background
+  bundled together — and the individual setters.
+</p>
+
+<figure class="code">
+<pre translate="no">accent := <span class="t">goforms.Style</span>{
+	Font:      <span class="f">goforms.NewFont</span>(<span class="s">""</span>, <span class="n">14</span>, <span class="k">true</span>, <span class="k">false</span>),
+	ForeColor: <span class="f">goforms.RGB</span>(<span class="n">90</span>, <span class="n">170</span>, <span class="n">255</span>),
+}
+
+btn.<span class="f">SetStyle</span>(accent)      <span class="c">// one control</span>
+panel.<span class="f">ApplyStyle</span>(accent)  <span class="c">// a container's children, recursively</span>
+form.<span class="f">ApplyStyle</span>(accent)   <span class="c">// every control on a form</span>
+
+lbl.<span class="f">SetForeColor</span>(<span class="f">goforms.RGB</span>(<span class="n">90</span>, <span class="n">170</span>, <span class="n">255</span>))  <span class="c">// or one at a time</span>
+panel.<span class="f">SetBackColor</span>(<span class="f">goforms.RGB</span>(<span class="n">60</span>, <span class="n">110</span>, <span class="n">180</span>))</pre>
+</figure>
+
+<p>
+  A <code translate="no">nil</code> colour or a zero
+  <code translate="no">Font</code> in a <code translate="no">Style</code>
+  means "leave that alone", so a Style can change only the part it cares
+  about.
+</p>
+
+<div class="note warn">
+  <span class="note-title">Font.Family is remembered, not always honoured</span>
+  <p>
+    Size, bold and italic work everywhere. The family only takes effect where
+    a control draws its own text; Fyne's built-in widgets render with the
+    theme's font and expose no per-instance family. That is a toolkit limit,
+    not an omission here.
+  </p>
 </div>
 </section>
 
