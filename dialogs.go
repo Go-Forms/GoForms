@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -138,8 +139,16 @@ type OpenFileDialog struct {
 	// InitialDirectory is where the picker opens, when it exists.
 	InitialDirectory string
 	// FileName holds the chosen path after a successful pick, mirroring
-	// OpenFileDialog.FileName.
+	// OpenFileDialog.FileName. In a browser there is no path to report, so
+	// it holds the name of the file the user chose.
 	FileName string
+
+	// content is the file as it was read at pick time, which is how a
+	// browser hands one over - see dialogs_web.go. Empty elsewhere: on a
+	// real filesystem ReadAll opens the path instead of holding the file
+	// in memory from the moment it was chosen.
+	content []byte
+	picked  bool
 }
 
 // NewOpenFileDialog mirrors `new OpenFileDialog()`.
@@ -151,6 +160,22 @@ func (o *OpenFileDialog) Show(owner *Form, onResult func(path string, ok bool)) 
 	if owner == nil {
 		return
 	}
+	o.content, o.picked = nil, false
+
+	if browserFilePicker() {
+		browserOpenFile(o.Filter, func(name string, data []byte, ok bool) {
+			if ok {
+				o.FileName, o.content, o.picked = name, data, true
+			} else {
+				o.FileName = ""
+			}
+			if onResult != nil {
+				onResult(o.FileName, ok)
+			}
+		})
+		return
+	}
+
 	d := dialog.NewFileOpen(func(rc fyne.URIReadCloser, err error) {
 		if err != nil || rc == nil {
 			if onResult != nil {
@@ -171,6 +196,11 @@ func (o *OpenFileDialog) Show(owner *Form, onResult func(path string, ok bool)) 
 // ReadAll is the convenience WinForms code usually writes by hand after a
 // successful pick.
 func (o *OpenFileDialog) ReadAll() ([]byte, error) {
+	// A file picked in a browser was read when it was picked; there is no
+	// path to open it by afterwards.
+	if o.picked {
+		return o.content, nil
+	}
 	if o.FileName == "" {
 		return nil, os.ErrNotExist
 	}
@@ -189,8 +219,15 @@ type SaveFileDialog struct {
 	InitialDirectory string
 	// DefaultFileName pre-fills the name field.
 	DefaultFileName string
-	// FileName holds the chosen path after a successful pick.
+	// FileName holds the chosen path after a successful pick. In a browser
+	// it holds the name the file will be downloaded as.
 	FileName string
+
+	// download records that WriteAll must hand the bytes to the browser
+	// rather than write them to disk, and toFile that the browser gave us a
+	// real file to write into rather than a download. See dialogs_web.go.
+	download bool
+	toFile   bool
 }
 
 // NewSaveFileDialog mirrors `new SaveFileDialog()`.
@@ -201,6 +238,29 @@ func (s *SaveFileDialog) Show(owner *Form, onResult func(path string, ok bool)) 
 	if owner == nil {
 		return
 	}
+	s.download, s.toFile = false, false
+
+	if browserFilePicker() {
+		// A browser with the File System Access API can show a real save
+		// dialog and give the program the file to write into; one without
+		// it can only take a name and produce a download.
+		if browserSavePicker() {
+			browserAskSaveTarget(s.suggestedName(), s.Filter, func(name string, ok bool) {
+				if ok {
+					s.FileName, s.toFile = name, true
+				} else {
+					s.FileName = ""
+				}
+				if onResult != nil {
+					onResult(s.FileName, ok)
+				}
+			})
+			return
+		}
+		s.askForName(owner, onResult)
+		return
+	}
+
 	d := dialog.NewFileSave(func(wc fyne.URIWriteCloser, err error) {
 		if err != nil || wc == nil {
 			if onResult != nil {
@@ -221,9 +281,59 @@ func (s *SaveFileDialog) Show(owner *Form, onResult func(path string, ok bool)) 
 	d.Show()
 }
 
+// askForName is the browser's version of "where should this go": a page
+// cannot offer a folder to save into, and the file name is asked for by the
+// download itself, so all that is left to choose is the name. WriteAll then
+// hands the bytes over as a download.
+func (s *SaveFileDialog) askForName(owner *Form, onResult func(path string, ok bool)) {
+	entry := widget.NewEntry()
+	entry.SetText(s.suggestedName())
+	title := s.Title
+	if title == "" {
+		title = "Save file"
+	}
+	d := dialog.NewForm(title, "Save", "Cancel",
+		[]*widget.FormItem{widget.NewFormItem("File name", entry)},
+		func(ok bool) {
+			if !ok {
+				if onResult != nil {
+					onResult("", false)
+				}
+				return
+			}
+			s.FileName = strings.TrimSpace(entry.Text)
+			if s.FileName == "" {
+				s.FileName = s.suggestedName()
+			}
+			s.download = true
+			if onResult != nil {
+				onResult(s.FileName, true)
+			}
+		}, owner.Window())
+	d.Show()
+}
+
+// suggestedName is what the name field starts at: what the caller asked for,
+// else something with the filter's extension on it.
+func (s *SaveFileDialog) suggestedName() string {
+	if s.DefaultFileName != "" {
+		return s.DefaultFileName
+	}
+	if len(s.Filter.Extensions) > 0 {
+		return "download" + s.Filter.Extensions[0]
+	}
+	return "download"
+}
+
 // WriteAll writes data to the chosen path, the usual follow-up to a
 // successful Show.
 func (s *SaveFileDialog) WriteAll(data []byte) error {
+	if s.toFile {
+		return browserWriteSaved(data)
+	}
+	if s.download {
+		return browserSaveFile(s.FileName, data)
+	}
 	if s.FileName == "" {
 		return os.ErrNotExist
 	}
@@ -245,6 +355,14 @@ func NewFolderBrowserDialog() *FolderBrowserDialog { return &FolderBrowserDialog
 // Show opens the folder picker; see OpenFileDialog.Show for the contract.
 func (f *FolderBrowserDialog) Show(owner *Form, onResult func(path string, ok bool)) {
 	if owner == nil {
+		return
+	}
+	if browserFilePicker() {
+		// A page is given files, never folders. Reporting that at once is
+		// better than a picker that cannot answer.
+		if onResult != nil {
+			onResult("", false)
+		}
 		return
 	}
 	d := dialog.NewFolderOpen(func(list fyne.ListableURI, err error) {
