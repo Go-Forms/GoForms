@@ -106,9 +106,30 @@ func newHostLayout(host arrangeHost, onSize func(fyne.Size)) *hostLayout {
 	return &hostLayout{host: host, onSize: onSize}
 }
 
-// MinSize reports zero: GoForms parents are absolutely positioned and take
-// whatever size they are given.
-func (l *hostLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.Size{} }
+// designHost is a parent with a size it was designed at - the Form. On the
+// desktop a window opens at that size, so the first layout pass captures
+// anchor baselines against it. A phone or a browser opens at whatever size
+// the screen is, and without this the baselines would be captured against
+// that instead: a control anchored right would then sit at its design x
+// on a wide page and slide off the left edge as the page narrowed.
+type designHost interface {
+	designSize() fyne.Size
+}
+
+// minSizeHost is a parent that reports a minimum - the Form when AutoScroll
+// is on, so its scroller knows how far there is to scroll.
+type minSizeHost interface {
+	hostMinSize() fyne.Size
+}
+
+// MinSize reports zero for most GoForms parents: they are absolutely
+// positioned and take whatever size they are given.
+func (l *hostLayout) MinSize([]fyne.CanvasObject) fyne.Size {
+	if m, ok := l.host.(minSizeHost); ok {
+		return m.hostMinSize()
+	}
+	return fyne.Size{}
+}
 
 func (l *hostLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	// Fyne calls Layout on every Refresh, not only on a real resize. Doing
@@ -118,8 +139,22 @@ func (l *hostLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 		return
 	}
 	sizeChanged := size != l.last
+	lenChanged := len(objs) != l.lastLen
 	l.last = size
 	l.lastLen = len(objs)
+
+	// A pass that sees new controls runs at the design size before the
+	// real one, so their anchor baselines are the designed geometry whatever
+	// size the parent has at that moment. On a phone or in a browser the
+	// body is already screen-sized when initializeComponent adds controls;
+	// without this every baseline would be measured against the screen.
+	if d, ok := l.host.(designHost); ok && lenChanged {
+		if ds := d.designSize(); ds.Width > 0 && ds.Height > 0 && ds != size {
+			if _, custom := l.host.(customArranger); !custom {
+				arrangeControls(l.host.arrangeControls(), ds, l.host.clientPadding())
+			}
+		}
+	}
 
 	// A container with its own arrangement scheme (FlowLayoutPanel,
 	// TableLayoutPanel) takes over entirely; docking and anchoring are what

@@ -13,6 +13,15 @@ type Application struct {
 
 	fyneApp fyne.App
 	id      string
+
+	// host is set on platforms with a single window (the browser), where
+	// every Form after the first lives inside the first one's canvas. See
+	// innerwindow.go.
+	host *canvasHost
+
+	// main is the first driver window opened, which every platform treats
+	// differently from the ones after it. See isMainWindow.
+	main fyne.Window
 }
 
 var current *Application
@@ -33,9 +42,45 @@ func NewApplication(id string) *Application {
 // auto-creating an Application on first use).
 func CurrentApplication() *Application {
 	if current == nil {
+		// A fyne.App already in place - a test.NewApp(), or one the
+		// developer built themselves - is the one to drive, not a second.
+		if a := fyne.CurrentApp(); a != nil {
+			current = &Application{fyneApp: a, id: a.UniqueID()}
+			return current
+		}
 		return NewApplication("goforms.app")
 	}
 	return current
+}
+
+// newWindow hands out the window a new Form draws in: a real driver window
+// where the platform has them, or a frame inside the first form's canvas
+// where it does not.
+func (a *Application) newWindow(title string) fyne.Window {
+	if a.host != nil {
+		return a.host.newWindow(title)
+	}
+	w := a.fyneApp.NewWindow(title)
+	if a.main == nil {
+		a.main = w
+	}
+	if hostFormsInCanvas() {
+		a.host = newCanvasHost(w)
+	}
+	return w
+}
+
+// isRoot reports whether w is the window every hosted form draws inside.
+func (a *Application) isRoot(w fyne.Window) bool {
+	return a.host != nil && a.host.root == w
+}
+
+// isMainWindow reports whether w is the first driver window the application
+// opened. The mobile driver treats every later one as a child - it gets a
+// title bar, and the main window does not - so this is what decides which
+// form pays for the menu button. See Form.menuInset.
+func (a *Application) isMainWindow(w fyne.Window) bool {
+	return a.main != nil && a.main == w
 }
 
 func (a *Application) fyne() fyne.App { return a.fyneApp }

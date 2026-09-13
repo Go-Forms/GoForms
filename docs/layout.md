@@ -163,6 +163,48 @@ anchor frame shrinks by it.
 panel.SetPadding(goforms.NewPadding(8))
 ```
 
+## On a phone or in a browser
+
+A window is whatever size the user made it; a phone screen and a browser tab
+are whatever size they are, and the form does not get a say. So on both,
+`AutoScroll` starts **on** - a form designed bigger than the screen scrolls
+instead of losing the controls that do not fit. On the desktop it starts off,
+which is WinForms' default, because there the window was sized to the form.
+
+Two things follow on a phone, and both are worth designing around rather than
+discovering:
+
+**The form pans from anywhere, except where the control wants the drag
+itself.** Dragging a group box, a label, a button or a panel scrolls the form
+under it; dragging a `DataGridView` scrolls the grid, and dragging inside a
+`TextBox` selects text, because those do something with a drag of their own.
+A control inside a `ScrollBox` pans the `ScrollBox` rather than the whole
+form - the nearest scroll wins.
+
+That is worth designing around rather than relying on: a form two screens wide
+is still two screens wide, and panning to a control is not finding it. The
+designer's **android** project template starts at a phone-sized form for that
+reason.
+
+**The main window's menu costs it a strip.** Where a desktop puts a menu bar,
+a phone puts a single hamburger button - and the driver draws it *over* the
+top-left corner of the content, exactly where a WinForms layout puts its first
+control. A form that called `SetMainMenu` reserves that button's height at the
+top on a phone, so its (0,0) stays visible; a form without a menu is not
+moved. Nothing about the form's own coordinates changes - `SetBounds(0, 0,
+...)` is still the form's corner - the whole surface simply starts below the
+button.
+
+A second form opened on a phone is a full-screen child with a title bar of its
+own, carrying the menu button and a close button, and the driver makes room
+for that itself.
+
+**Typing raises the keyboard by itself.** Touching a `TextBox` focuses it and
+brings up the on-screen keyboard - the numeric one for a numeric field, the
+password one for a masked field - and what is typed raises `KeyPress` on the
+control the same as a hardware key would. Touching anything that takes no
+typing puts the keyboard away.
+
 ## What the designer shows
 
 The visual designer applies docking when it draws, so a docked control appears
