@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/driver/mobile"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -88,6 +89,10 @@ type interactionArea struct {
 	// lastTap is when the previous click landed, for spotting a double click
 	// without making Fyne delay every single one. See Tapped.
 	lastTap time.Time
+
+	// dragTarget is who the gesture in progress belongs to, decided on its
+	// first move and held until it ends. See Dragged.
+	dragTarget fyne.Draggable
 }
 
 func newInteractionArea(content fyne.CanvasObject, owner *ControlBase) *interactionArea {
@@ -207,6 +212,59 @@ func (a *interactionArea) TappedSecondary(e *fyne.PointEvent) {
 	}
 }
 
+// --- touch --------------------------------------------------------------
+//
+// A phone reports touches, not mouse buttons, and the driver treats the two
+// interfaces quite differently: it looks for the topmost object that is
+// mobile.Touchable *or* fyne.Focusable, calls TouchDown only on a Touchable,
+// and then unfocuses unless what it found is already the focused object.
+//
+// The overlay is Focusable and was not Touchable, so it won every hit test
+// and then dropped the touch on the floor: widget.Entry.TouchDown - the only
+// place an entry asks for focus on mobile - was never reached, the canvas
+// unfocused on every tap, and the driver never asked for a keyboard. Text
+// fields could not be typed into on Android at all.
+
+// TouchDown focuses the overlay for a control that takes typing, so the
+// driver raises the on-screen keyboard, and forwards the touch on.
+func (a *interactionArea) TouchDown(e *mobile.TouchEvent) {
+	if t, ok := a.content.(mobile.Touchable); ok {
+		t.TouchDown(e)
+	}
+	// Focus goes to the overlay, and *after* the widget has had the touch -
+	// an Entry focuses itself in TouchDown, and the driver unfocuses again
+	// unless the object it hit (the overlay) is the focused one. The overlay
+	// is also what keystrokes are routed through (see TypedRune), so this is
+	// the state that both keeps the keyboard up and raises KeyPress.
+	if _, wantsKeyboard := a.content.(mobile.Keyboardable); wantsKeyboard && a.owner.Enabled() {
+		if canvas := fyne.CurrentApp().Driver().CanvasForObject(a); canvas != nil {
+			canvas.Focus(a)
+		}
+	}
+}
+
+func (a *interactionArea) TouchUp(e *mobile.TouchEvent) {
+	if t, ok := a.content.(mobile.Touchable); ok {
+		t.TouchUp(e)
+	}
+}
+
+func (a *interactionArea) TouchCancel(e *mobile.TouchEvent) {
+	if t, ok := a.content.(mobile.Touchable); ok {
+		t.TouchCancel(e)
+	}
+}
+
+// Keyboard reports which on-screen keyboard the control wants - a number pad
+// for a numeric field, the password keyboard for a masked one - since the
+// driver asks the focused object, which is the overlay.
+func (a *interactionArea) Keyboard() mobile.KeyboardType {
+	if k, ok := a.content.(mobile.Keyboardable); ok {
+		return k.Keyboard()
+	}
+	return mobile.DefaultKeyboard
+}
+
 func (a *interactionArea) MouseDown(e *desktop.MouseEvent) {
 	a.owner.MouseDown.Fire(a.owner.self(), a.fromDesktop(e, 1))
 	if m, ok := a.content.(desktop.Mouseable); ok {
@@ -251,16 +309,146 @@ func (a *interactionArea) Scrolled(e *fyne.ScrollEvent) {
 	}
 }
 
+// Dragged forwards the gesture the way every other event here is forwarded:
+// to the widget underneath if it drags, and otherwise to the scroll the
+// control is sitting in.
+//
+// The second half is what makes a form usable on a phone. The overlay wins
+// the hit test for every control (that is its job), and Fyne gives a drag to
+// the innermost object that can take one - so an overlay that implements
+// Draggable and does nothing with it stops the gesture dead. A form larger
+// than the screen then only panned where bare background showed through:
+// drag a group box, a label or a button and nothing moved.
 func (a *interactionArea) Dragged(e *fyne.DragEvent) {
-	if d, ok := a.content.(fyne.Draggable); ok {
-		d.Dragged(e)
+	if a.dragTarget == nil {
+		a.dragTarget = a.dragRecipient()
+		if a.dragTarget == nil {
+			return
+		}
 	}
+	a.dragTarget.Dragged(e)
 }
 
 func (a *interactionArea) DragEnd() {
-	if d, ok := a.content.(fyne.Draggable); ok {
-		d.DragEnd()
+	if a.dragTarget != nil {
+		a.dragTarget.DragEnd()
+		a.dragTarget = nil
 	}
+}
+
+// dragRecipient picks who owns a gesture that started on this control, once
+// per gesture: the control itself, then a list that scrolls but hides its
+// scroller, then whatever the control is scrolling inside.
+func (a *interactionArea) dragRecipient() fyne.Draggable {
+	if d, ok := a.content.(fyne.Draggable); ok {
+		return d
+	}
+	if s, ok := a.content.(offsetScroller); ok && onPhone() {
+		return &listDrag{list: s, owner: a}
+	}
+	return dragFallback(a)
+}
+
+// offsetScroller is a widget that scrolls itself but keeps its scroller
+// private - widget.List, and so ListBox and CheckedListBox. The overlay hides
+// that scroller from the hit test the same way it hides everything else, so
+// the drag is turned back into the one move the widget does expose.
+//
+// A mouse has a wheel and needs none of this, which is why it is a phone-only
+// path: on the desktop a drag over a list goes on meaning nothing.
+type offsetScroller interface {
+	GetScrollOffset() float32
+	ScrollToOffset(offset float32)
+}
+
+// listDrag scrolls a list by the drag, and hands the gesture on to the form
+// when the list has nowhere left to go - a list too short to scroll, or one
+// already at its end, must not trap the finger on a form that can still pan.
+type listDrag struct {
+	list  offsetScroller
+	owner *interactionArea
+}
+
+func (l *listDrag) Dragged(e *fyne.DragEvent) {
+	was := l.list.GetScrollOffset()
+	to := was - e.Dragged.DY
+	if to < 0 {
+		to = 0
+	}
+	l.list.ScrollToOffset(to)
+	if l.list.GetScrollOffset() != was {
+		return
+	}
+	// Nothing moved - a sideways drag, or the end of the list. Whatever is
+	// behind takes this event and the rest of the gesture.
+	if next := dragFallback(l.owner); next != nil {
+		l.owner.dragTarget = next
+		next.Dragged(e)
+	}
+}
+
+func (l *listDrag) DragEnd() {}
+
+// dragFallback is the "who else could want this drag" lookup, replaceable in
+// tests - a *container.Scroll only takes drags in a mobile build, so on any
+// other platform there is nothing real to find.
+var dragFallback = func(obj fyne.CanvasObject) fyne.Draggable {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return nil
+	}
+	driver := app.Driver()
+	if driver == nil {
+		return nil
+	}
+	canvas := driver.CanvasForObject(obj)
+	if canvas == nil {
+		return nil
+	}
+	scroll := enclosingScroll(canvas.Content(), obj)
+	if scroll == nil {
+		return nil
+	}
+	// Scroll is Draggable on phones only; on the desktop a drag over a
+	// control that does not drag goes on meaning nothing, as it always has.
+	if d, ok := any(scroll).(fyne.Draggable); ok {
+		return d
+	}
+	return nil
+}
+
+// enclosingScroll returns the innermost scroll container between root and
+// target - the one a drag over target should pan. A control inside a
+// ScrollBox therefore pans the ScrollBox, not the whole form.
+//
+// The walk only descends through containers and scrollers, which is the whole
+// path for a form's controls: window content, the form's body, each control's
+// stack. A control buried inside another widget's renderer is not reachable
+// this way, and drags over it keep doing what they did before.
+func enclosingScroll(root, target fyne.CanvasObject) *container.Scroll {
+	var found *container.Scroll
+	var walk func(node fyne.CanvasObject, inside *container.Scroll) bool
+	walk = func(node fyne.CanvasObject, inside *container.Scroll) bool {
+		if node == target {
+			found = inside
+			return true
+		}
+		switch n := node.(type) {
+		case *container.Scroll:
+			return walk(n.Content, n)
+		case *fyne.Container:
+			for _, child := range n.Objects {
+				if walk(child, inside) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !walk(root, nil) {
+		return nil
+	}
+	return found
 }
 
 // Cursor forwards the underlying widget's cursor so hovering a TextBox

@@ -4,8 +4,11 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/driver/mobile"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 )
 
 // hostForm builds a real Form-less canvas hosting one control at a known
@@ -343,5 +346,270 @@ func TestMouseModifiersAreReported(t *testing.T) {
 	}
 	if !key.Shift {
 		t.Error("the shift state reported with the mouse event should carry to the key event")
+	}
+}
+
+// recordingDraggable stands in for whatever a drag is handed on to.
+type recordingDraggable struct {
+	widget.BaseWidget
+	dragged []fyne.Delta
+	ended   int
+}
+
+func (r *recordingDraggable) Dragged(e *fyne.DragEvent) { r.dragged = append(r.dragged, e.Dragged) }
+func (r *recordingDraggable) DragEnd()                  { r.ended++ }
+func (r *recordingDraggable) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(container.NewWithoutLayout())
+}
+
+// stubDragFallback replaces the "who else wants this drag" lookup for a test,
+// since a real *container.Scroll only takes drags in a mobile build.
+func stubDragFallback(t *testing.T, d fyne.Draggable) {
+	t.Helper()
+	prev := dragFallback
+	dragFallback = func(fyne.CanvasObject) fyne.Draggable { return d }
+	t.Cleanup(func() { dragFallback = prev })
+}
+
+// TestDragOverAPlainControlPansTheScroll is the phone bug: the overlay wins
+// the hit test for every control, so an overlay that swallowed drags left a
+// form larger than the screen pannable only where bare background showed.
+func TestDragOverAPlainControlPansTheScroll(t *testing.T) {
+	test.NewApp()
+
+	scroll := &recordingDraggable{}
+	stubDragFallback(t, scroll)
+
+	lbl := NewLabel("nothing here drags")
+	hostAt(t, lbl, 0, 0, 100, 30)
+
+	lbl.overlay.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-12, 0)})
+	lbl.overlay.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-8, -4)})
+	lbl.overlay.DragEnd()
+
+	if len(scroll.dragged) != 2 {
+		t.Fatalf("the scroll got %d of the 2 drag steps", len(scroll.dragged))
+	}
+	if scroll.dragged[0] != fyne.NewDelta(-12, 0) || scroll.dragged[1] != fyne.NewDelta(-8, -4) {
+		t.Errorf("the deltas were changed on the way through: %v", scroll.dragged)
+	}
+	if scroll.ended != 1 {
+		t.Errorf("DragEnd reached the scroll %d times, want once", scroll.ended)
+	}
+
+	// The next gesture asks again rather than reusing the answer.
+	lbl.overlay.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-1, 0)})
+	if len(scroll.dragged) != 3 {
+		t.Errorf("a second gesture did not reach the scroll: %v", scroll.dragged)
+	}
+}
+
+// TestDragOverADraggingControlStaysWithTheControl: selecting text in a
+// TextBox is a drag the control owns, and it must not turn into a pan.
+func TestDragOverADraggingControlStaysWithTheControl(t *testing.T) {
+	test.NewApp()
+
+	scroll := &recordingDraggable{}
+	stubDragFallback(t, scroll)
+
+	tb := NewTextBox()
+	tb.SetText("select me")
+	hostAt(t, tb, 0, 0, 160, 30)
+
+	tb.overlay.Dragged(&fyne.DragEvent{
+		PointEvent: fyne.PointEvent{Position: fyne.NewPos(10, 10)},
+		Dragged:    fyne.NewDelta(20, 0),
+	})
+	tb.overlay.DragEnd()
+
+	if len(scroll.dragged) != 0 {
+		t.Errorf("a drag inside the text box was handed to the scroll: %v", scroll.dragged)
+	}
+}
+
+// TestEnclosingScrollTakesTheInnermost: a control inside a ScrollBox pans the
+// ScrollBox, not the form behind it.
+func TestEnclosingScrollTakesTheInnermost(t *testing.T) {
+	test.NewApp()
+
+	target := widget.NewLabel("x")
+	inner := container.NewScroll(container.NewWithoutLayout(target))
+	outer := container.NewScroll(container.NewWithoutLayout(inner))
+
+	if got := enclosingScroll(outer, target); got != inner {
+		t.Errorf("got %p, want the inner scroll %p", got, inner)
+	}
+	if got := enclosingScroll(inner, target); got != inner {
+		t.Errorf("starting at the inner scroll should still find it, got %p", got)
+	}
+
+	// No scroll on the path, and a target that is not in the tree at all.
+	loose := container.NewWithoutLayout(target)
+	if got := enclosingScroll(loose, target); got != nil {
+		t.Errorf("a control outside any scroll found %p", got)
+	}
+	if got := enclosingScroll(outer, widget.NewLabel("elsewhere")); got != nil {
+		t.Errorf("a control that is not in the tree found %p", got)
+	}
+}
+
+// fakeList stands in for widget.List: it scrolls itself, but only through the
+// offset it exposes, and it stops at the end the way the real one does.
+type fakeList struct {
+	widget.BaseWidget
+	offset float32
+	max    float32
+}
+
+func (f *fakeList) GetScrollOffset() float32 { return f.offset }
+func (f *fakeList) ScrollToOffset(o float32) {
+	if o < 0 {
+		o = 0
+	}
+	if o > f.max {
+		o = f.max
+	}
+	f.offset = o
+}
+func (f *fakeList) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(container.NewWithoutLayout())
+}
+
+// areaOver builds the overlay a control would have over the given widget,
+// which is what the driver hands drags to.
+func areaOver(content fyne.CanvasObject) *interactionArea {
+	return newInteractionArea(content, &ControlBase{})
+}
+
+// TestDragScrollsAListThroughItsOffset: a ListBox keeps its scroller inside
+// its renderer, where the overlay hides it from the hit test, so on a phone
+// the list was unreachable past its first few rows.
+func TestDragScrollsAListThroughItsOffset(t *testing.T) {
+	test.NewApp()
+	onPhoneFor(t, true)
+
+	form := &recordingDraggable{}
+	stubDragFallback(t, form)
+
+	list := &fakeList{max: 100}
+	area := areaOver(list)
+
+	area.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(0, -30)})
+	if list.offset != 30 {
+		t.Errorf("dragging up 30 left the list at %v, want 30", list.offset)
+	}
+	if len(form.dragged) != 0 {
+		t.Errorf("the form was panned while the list still had room: %v", form.dragged)
+	}
+
+	// At the end of the list the gesture belongs to the form behind it.
+	list.offset = list.max
+	area.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(0, -10)})
+	if len(form.dragged) != 1 {
+		t.Fatalf("at the end of the list the form got %d events, want 1", len(form.dragged))
+	}
+	// And it keeps the rest of the gesture rather than probing again.
+	area.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(0, -10)})
+	if len(form.dragged) != 2 {
+		t.Errorf("the form did not keep the gesture: %v", form.dragged)
+	}
+	area.DragEnd()
+}
+
+// TestDragOverAListOnTheDesktopIsNotAScroll: a mouse has a wheel, and a
+// stray drag while clicking a row must not move the list under the pointer.
+func TestDragOverAListOnTheDesktopIsNotAScroll(t *testing.T) {
+	test.NewApp()
+	onPhoneFor(t, false)
+	stubDragFallback(t, nil)
+
+	list := &fakeList{max: 100}
+	area := areaOver(list)
+	area.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(0, -30)})
+
+	if list.offset != 0 {
+		t.Errorf("a desktop drag scrolled the list to %v", list.offset)
+	}
+}
+
+// TestTouchFocusesATextBoxSoThePhoneShowsAKeyboard is why typing was
+// impossible on Android: the driver only asks for the on-screen keyboard for
+// the object it has focused, it focuses nothing itself, and the one place an
+// Entry asks for focus on a phone is TouchDown - which the overlay, not being
+// Touchable, never received. Tapping a field unfocused everything instead.
+func TestTouchFocusesATextBoxSoThePhoneShowsAKeyboard(t *testing.T) {
+	test.NewApp()
+
+	tb := NewTextBox()
+	win := hostAt(t, tb, 0, 0, 200, 32)
+
+	tb.overlay.TouchDown(&mobile.TouchEvent{})
+
+	if got := win.Canvas().Focused(); got != fyne.Focusable(tb.overlay) {
+		t.Fatalf("a touch focused %T, want the control's overlay - the driver keyboards whatever it has focused", got)
+	}
+	// And what is typed on that keyboard reaches the entry.
+	test.Type(tb.overlay, "42")
+	if tb.Text() != "42" {
+		t.Errorf("typing after a touch gave %q, want 42", tb.Text())
+	}
+}
+
+// TestTouchDoesNotKeyboardAControlThatTakesNoTyping: a button or a label must
+// not raise the keyboard, and a disabled field must not either.
+func TestTouchDoesNotKeyboardAControlThatTakesNoTyping(t *testing.T) {
+	test.NewApp()
+
+	btn := NewButton("OK")
+	win := hostAt(t, btn, 0, 0, 100, 30)
+	btn.overlay.TouchDown(&mobile.TouchEvent{})
+	if got := win.Canvas().Focused(); got != nil {
+		t.Errorf("a touch on a button focused %T; only controls that take typing should", got)
+	}
+
+	tb := NewTextBox()
+	win2 := hostAt(t, tb, 0, 0, 200, 32)
+	tb.SetEnabled(false)
+	tb.overlay.TouchDown(&mobile.TouchEvent{})
+	if got := win2.Canvas().Focused(); got != nil {
+		t.Errorf("a touch on a disabled field focused %T", got)
+	}
+}
+
+// TestKeyboardTypeFollowsTheControl: the driver asks the focused object -
+// the overlay - which keyboard to raise, so it has to answer for the widget.
+func TestKeyboardTypeFollowsTheControl(t *testing.T) {
+	test.NewApp()
+
+	pwd := NewPasswordTextBox()
+	hostAt(t, pwd, 0, 0, 200, 32)
+	if got := pwd.overlay.Keyboard(); got != mobile.PasswordKeyboard {
+		t.Errorf("a masked field asked for %v, want the password keyboard", got)
+	}
+
+	lbl := NewLabel("hi")
+	hostAt(t, lbl, 0, 0, 100, 30)
+	if got := lbl.overlay.Keyboard(); got != mobile.DefaultKeyboard {
+		t.Errorf("a label asked for %v, want the default keyboard", got)
+	}
+}
+
+// TestTouchReachesTheWidgetUnderneath keeps the forwarding half honest.
+func TestTouchReachesTheWidgetUnderneath(t *testing.T) {
+	test.NewApp()
+
+	tb := NewTextBox()
+	tb.SetText("abc")
+	hostAt(t, tb, 0, 0, 200, 32)
+
+	// widget.Entry moves its cursor on TouchDown; if the touch never arrived
+	// the entry would not know where it was tapped.
+	tb.overlay.TouchDown(&mobile.TouchEvent{
+		PointEvent: fyne.PointEvent{Position: fyne.NewPos(500, 10)},
+	})
+	tb.overlay.TouchUp(&mobile.TouchEvent{})
+
+	if tb.w.CursorColumn != 3 {
+		t.Errorf("a touch past the end of the text left the cursor at column %d, want 3", tb.w.CursorColumn)
 	}
 }
