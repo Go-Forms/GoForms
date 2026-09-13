@@ -148,9 +148,18 @@ if about.ShowDialog() == goforms.DialogOK {
 }
 ```
 
+![A modal About form](images/form-about.png)
+
 Keep a reference if you want at most one instance, and clear it on `Closed` -
 [the showcase's MainForm](https://github.com/Go-Forms/GoFormsShowcase/blob/main/Forms/MainForm/MainForm.go)
 does this for its four demo windows.
+
+A dialog that edits something and reports what it collected is the same thing
+with a `DialogResult`: the showcase's row editor fills itself from the grid
+row, validates in the form rather than closing on bad input, and hands the
+values back when Save sets `DialogOK`.
+
+![The row editor dialog](images/form-editrow.png)
 
 ## The showcase
 
@@ -164,7 +173,7 @@ go run .
 
 Every screenshot in this documentation comes from it, produced by
 [`docs/tools/capture.ps1`](tools/capture.ps1). To photograph one form on its
-own:
+own - `main`, `controls`, `data`, `layout`, `dialogs`, `about` or `editrow`:
 
 ```
 go run ./cmd/shot layout

@@ -7,20 +7,25 @@ It is not a code generator you run once. The file on disk is the model: the
 extension parses your Go source, shows it, and writes your edits back into the
 same source. Anything it does not recognise is left untouched.
 
+![The designer editing a form](images/designer-canvas.png)
+
 ## Installing
+
+Take the `.vsix` from the [latest release](https://github.com/Go-Forms/GoFormsDesigner/releases/latest),
+or build it yourself:
 
 ```
 cd GoFormsDesigner
 npm install
 npm run package
-code --install-extension goforms-designer-0.6.0.vsix
+code --install-extension goforms-designer-0.10.0.vsix
 ```
 
 If you use VS Code **profiles**, install into the one you actually work in -
 otherwise the extension is registered but invisible:
 
 ```
-code --profile "My profile" --install-extension goforms-designer-0.6.0.vsix
+code --profile "My profile" --install-extension goforms-designer-0.10.0.vsix
 ```
 
 Reload the window afterwards (`Developer: Reload Window`); a running instance
@@ -32,13 +37,38 @@ The extension builds its Go helper on first use, so `go` has to be on `PATH`.
 
 | Command | What it does |
 |---|---|
-| `GoForms: Create New Project...` | scaffolds `main.go`, `go.mod` and a first form |
+| `GoForms: Create New Project...` | scaffolds `main.go`, `go.mod`, a first form, build tasks and a `.gitignore` |
 | `GoForms: New Form...` | adds a `Forms/<Name>/` pair |
-| `GoForms: Open Designer` | opens the canvas for the current file |
+| `GoForms: Open Visual Designer` | opens the canvas for the current file |
 | `GoForms: Open as Text` | back to the Go source |
+| `GoForms: Tidy Designer File` | runs the cleanup pass on a file edited elsewhere |
+| `GoForms: Edit Theme` | opens `<name>-styles.go` as the theme editor |
+| `GoForms: Open Theme as Text` | back to the Go source |
+| `GoForms: Build...` | asks for a target: desktop, WebAssembly or Android |
+| `GoForms: Build for Desktop` | `go build` into `build/desktop/` |
+| `GoForms: Run on Desktop` | builds and runs; also the toolbar's play button |
+| `GoForms: Build for WebAssembly` | compiles for the browser and assembles `build/wasm/` |
+| `GoForms: Serve WebAssembly Build in Browser` | serves that build on a loopback port and opens it |
+| `GoForms: Build for Android (APK)` | packages an APK into `build/android/` |
+| `GoForms: Install APK on Connected Device (adb)` | installs the newest APK over adb |
+| `GoForms: Check Setup` | which Go was found, where it looked, and what is present for each target |
 | `GoForms: Set Framework Path...` | points a project at your GoForms checkout |
+| `GoForms: Set Android NDK Path...` | for an NDK the search does not cover |
+| `GoForms: Set fyne CLI Path...` | likewise for the fyne tool |
+| `GoForms: Open Setup Guide` | the bundled guides for Android, fyne and WebAssembly |
 
 Opening any `*-designer.go` gives you the designer by default.
+
+## The theme editor
+
+`<name>-styles.go` holds the one `goforms.Theme` literal that decides how the
+whole application looks, and opens as an editor of its own: a picker and a hex
+box per colour, numbers for the metrics, and a preview beside them. A field
+left unset keeps the toolkit default and is still drawn in the preview as the
+default it falls through to, so the preview shows what the theme *will* look
+like rather than only what it sets.
+
+![The theme editor](images/designer-theme.png)
 
 ## The window
 
@@ -48,6 +78,8 @@ Visual Studio:
 - **Controls** - the toolbox, grouped into Common Controls, Containers,
   Menus & Toolbars and Data, with a search box. Clicking a type adds it to the
   form, or into the selected container.
+
+  ![The toolbox](images/designer-toolbox.png)
 - **Properties** - everything about the selected control. Clicking a control on
   the canvas switches to this tab automatically.
 

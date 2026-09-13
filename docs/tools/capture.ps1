@@ -47,6 +47,12 @@ param(
     [int]$Height = 860,
     [int]$SettleMs = 3500,
     [string]$Keys = '',
+    # Clicks to make before capturing, "x,y" relative to the window's visible
+    # top-left corner; repeatable.
+    [string[]]$Click = @(),
+    # Pixels to shave off each edge. The frame bounds can round a pixel wide,
+    # which shows up as a sliver of whatever is behind the window.
+    [int]$Inset = 2,
     [switch]$KeepOpen,
     [int]$AttachPid = 0,
     # Arguments for the application, e.g. the form name for cmd/shot.
@@ -65,7 +71,31 @@ public static class Win32Win {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, IntPtr extra);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out RECT value, int size);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+
+    // What the window looks like on screen. GetWindowRect reports the resize
+    // border too, which is invisible on Windows 10 and later - about eight
+    // pixels of whatever is behind the window, down each side and along the
+    // bottom of every screenshot. DWMWA_EXTENDED_FRAME_BOUNDS is the rectangle
+    // actually painted; it is unavailable on older systems, hence the fallback.
+    public static RECT FrameBounds(IntPtr hWnd) {
+        RECT r;
+        if (DwmGetWindowAttribute(hWnd, 9, out r, Marshal.SizeOf(typeof(RECT))) == 0 &&
+            r.Right > r.Left && r.Bottom > r.Top) {
+            return r;
+        }
+        GetWindowRect(hWnd, out r);
+        return r;
+    }
+
+    public static void ClickAt(int x, int y) {
+        SetCursorPos(x, y);
+        mouse_event(0x0002, 0, 0, 0, IntPtr.Zero);   // left down
+        mouse_event(0x0004, 0, 0, 0, IntPtr.Zero);   // left up
+    }
 }
 '@
 }
@@ -154,10 +184,25 @@ if ($Keys) {
     if ($proc.MainWindowHandle -ne 0) { $h = $proc.MainWindowHandle }
 }
 
+# Clicks that prepare what the screenshot is supposed to show: clearing the
+# event log of whatever arrived while the window was taking focus, selecting
+# the row a dialog is about. Coordinates are relative to the window's visible
+# top-left corner, which is what you measure off a previous screenshot.
+if ($Click.Count -gt 0) {
+    $fr = [Win32Win]::FrameBounds($h)
+    foreach ($spot in $Click) {
+        $parts = $spot -split '\s*,\s*'
+        if ($parts.Count -ne 2) { throw "Click wants 'x,y', got '$spot'." }
+        [Win32Win]::ClickAt($fr.Left + [int]$parts[0], $fr.Top + [int]$parts[1])
+        Start-Sleep -Milliseconds 400
+    }
+    Start-Sleep -Milliseconds 600
+}
+
 # Capture exactly the window, not the whole monitor: the surrounding desktop
 # is nobody's business and changes between runs.
-$r = New-Object Win32Win+RECT
-[void][Win32Win]::GetWindowRect($h, [ref]$r)
+$r = [Win32Win]::FrameBounds($h)
+$r.Left += $Inset; $r.Top += $Inset; $r.Right -= $Inset; $r.Bottom -= $Inset
 $w = $r.Right - $r.Left
 $ht = $r.Bottom - $r.Top
 if ($w -le 0 -or $ht -le 0) { throw "Window rect is empty: $($r.Left),$($r.Top),$($r.Right),$($r.Bottom)" }
@@ -170,8 +215,14 @@ $g.Dispose()
 $outDir = Split-Path -Parent $Out
 if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Force $outDir | Out-Null }
 # Bitmap.Save resolves relative paths against the process working directory,
-# not PowerShell's, so make it absolute here.
-$outPath = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Out))
+# not PowerShell's, so make it absolute here - and only when it is relative,
+# since joining an absolute path onto the current directory produces a path
+# that cannot exist.
+$outPath = if ([System.IO.Path]::IsPathRooted($Out)) {
+    [System.IO.Path]::GetFullPath($Out)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Out))
+}
 $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
 $Out = $outPath
