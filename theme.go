@@ -93,6 +93,8 @@ type fyneTheme struct {
 	spec Theme
 }
 
+var _ fyne.Theme = (*fyneTheme)(nil)
+
 func (t *fyneTheme) variant() fyne.ThemeVariant {
 	if t.spec.Dark {
 		return fynetheme.VariantDark

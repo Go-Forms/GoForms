@@ -5,7 +5,6 @@ import (
 
 	"fyne.io/fyne/v2/test"
 
-	"fyne.io/fyne/v2"
 	fynetheme "fyne.io/fyne/v2/theme"
 )
 
@@ -58,10 +57,6 @@ func TestThemeDarkFlagWinsOverTheOSVariant(t *testing.T) {
 	if gotLight != wantLight {
 		t.Errorf("a light theme should resolve unset colours lightly, got %v", gotLight)
 	}
-}
-
-func TestThemeSatisfiesFyneTheme(t *testing.T) {
-	var _ fyne.Theme = &fyneTheme{spec: LightTheme()}
 }
 
 // TestStyleAppliesOnlyTheFieldsItSets covers the local layer.
