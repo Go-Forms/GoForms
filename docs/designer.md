@@ -18,14 +18,14 @@ or build it yourself:
 cd GoFormsDesigner
 npm install
 npm run package
-code --install-extension goforms-designer-0.10.0.vsix
+code --install-extension goforms-designer-0.10.1.vsix
 ```
 
 If you use VS Code **profiles**, install into the one you actually work in -
 otherwise the extension is registered but invisible:
 
 ```
-code --profile "My profile" --install-extension goforms-designer-0.10.0.vsix
+code --profile "My profile" --install-extension goforms-designer-0.10.1.vsix
 ```
 
 Reload the window afterwards (`Developer: Reload Window`); a running instance
