@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GoForms — WinForms для Go, с настоящим визуальным дизайнером</title>
-<meta name="description" content="GoForms — GUI-фреймворк для Go в стиле Windows Forms: абсолютное позиционирование, докинг и якоря, события как в C# и визуальный дизайнер, который правит ваш Go-код прямо в VS Code.">
+<title>GoForms — GUI-фреймворк для Go в стиле WinForms</title>
+<meta name="description" content="GoForms — GUI-фреймворк для Go в стиле Windows Forms: абсолютные координаты, docking и anchoring, многоадресные события и дизайнер для VS Code, который правит сам Go-код.">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="https://go-forms.github.io/GoForms/">
 <link rel="alternate" hreflang="ru" href="https://go-forms.github.io/GoForms/ru/">
 <link rel="alternate" hreflang="x-default" href="https://go-forms.github.io/GoForms/">
 <link rel="stylesheet" href="../style.css">
-<meta property="og:title" content="GoForms — WinForms для Go">
-<meta property="og:description" content="GUI-фреймворк для Go в стиле Windows Forms и визуальный дизайнер для VS Code, который правит ваш Go-код напрямую.">
+<meta property="og:title" content="GoForms — GUI-фреймворк для Go в стиле WinForms">
+<meta property="og:description" content="Абсолютные координаты, docking и anchoring, многоадресные события и дизайнер для VS Code, который правит сам Go-код.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="../assets/layout-design.png">
 </head>
@@ -24,11 +24,10 @@
       <span>GoForms</span>
     </a>
     <nav>
-      <a href="#why">Зачем</a>
       <a href="#code">Код</a>
       <a href="#designer">Дизайнер</a>
       <a href="#controls">Контролы</a>
-      <a href="#start">Начало</a>
+      <a href="#install">Установка</a>
       <a href="guide.html">Руководство</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
@@ -41,91 +40,46 @@
 
 <main id="top">
 
-<section class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow">Go · Десктоп · Кроссплатформенно</span>
-      <h1>Знаете WinForms —<br>значит, уже знаете <span class="accent">GoForms</span>.</h1>
-      <p class="lede">
-        Форма. Контролы на <code translate="no">X, Y, Width, Height</code>. Докинг и якоря,
-        которые переживают изменение размера. События, которые вы подключаете через
-        <code translate="no">.Handle(…)</code>. И визуальный дизайнер, который пишет обычный
-        читаемый Go — а не бинарный ресурс, который вам не положено открывать.
-      </p>
-      <div class="cta">
-        <a class="btn btn-primary" href="#start">Начать</a>
-        <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoFormsDesigner/releases/latest">Скачать дизайнер</a>
-        <a class="btn btn-ghost" href="guide.html">Руководство</a>
-        <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoForms">Исходники</a>
-      </div>
-    </div>
-    <figure class="hero-shot">
-      <img src="../assets/layout-design.png" alt="Форма раскладки в GoFormsShowcase: пять цветных пристыкованных панелей, кнопки с якорями, FlowLayoutPanel, TableLayoutPanel и SplitContainer с вкладками.">
-      <figcaption>GoFormsShowcase в работе. Каждая панель выше — настоящий контейнер с настоящими дочерними контролами.</figcaption>
-    </figure>
-  </div>
-</section>
-
-<section id="why">
+<section class="intro">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Слой совместимости, а не переименование</h2>
-      <p>
-        Отрисовку, окна и ввод берёт на себя <a href="https://fyne.io">Fyne</a> —
-        отсюда аппаратное ускорение на Windows, Linux и macOS без единой строчки
-        цикла сообщений. Всё, что выше этой границы, — WinForms.
-      </p>
-    </div>
+    <h1>GoForms</h1>
+    <p class="lead">
+      GUI-фреймворк для Go, повторяющий <code translate="no">System.Windows.Forms</code>:
+      контролы по <code translate="no">X, Y, Width, Height</code>, docking и anchoring,
+      многоадресные события с сигнатурой <code translate="no">(sender, e)</code> и форма,
+      разделённая на сгенерированную половину и написанную руками.
+    </p>
+    <p>
+      Отрисовка, окна и ввод — от <a href="https://fyne.io">Fyne</a>, поэтому рисуется
+      через GPU на Windows, Linux и macOS и собирается ещё под WebAssembly и Android.
+      Всё, что выше этой границы — каталог контролов, правила раскладки, модель событий —
+      это API WinForms, с именами тех типов, которые он заменяет.
+    </p>
+    <p>
+      Дизайнер — расширение для VS Code. Он читает и пишет тот же Go-файл, который вы
+      написали бы руками: никакого <code translate="no">.resx</code>, никаких ресурсных
+      блобов, ничего, что открывается только инструментом.
+    </p>
 
-    <div class="cards">
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
-        <h3>Абсолютное позиционирование</h3>
-        <p>Контрол оказывается там, куда вы его поставили. Никаких flex-контейнеров, с которыми надо бороться, и никакой алгебры раскладки, которую приходится разгадывать, когда что-то встало не туда.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 4v16M4 14h16"/></svg></div>
-        <h3>Докинг и якоря</h3>
-        <p>Те же пять стилей докинга и четыре флага якорей, с тем же порядком отрезания краёв — плюс flow-, table- и split-контейнеры, когда сетка проще арифметики.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg></div>
-        <h3>Настоящие multicast-события</h3>
-        <p><code translate="no">Event[T]</code> ведёт себя как событие в C#: <code translate="no">.Handle(h)</code> — это <code translate="no">+=</code>, обработчики выполняются в порядке подписки, а сигнатура всегда <code translate="no">(sender any, e T)</code>.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></div>
-        <h3>34 контрола, один каталог</h3>
-        <p>От <code translate="no">Label</code> до <code translate="no">DataGridView</code>, каждый назван по типу из <code translate="no">System.Windows.Forms</code>, который он замещает, — так что знакомая вам документация продолжает работать.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5v8l-7 5-7-5z"/></svg></div>
-        <h3>Разделение как в partial-классах</h3>
-        <p>Раскладка живёт в <code translate="no">Form-designer.go</code>, ваш код — в <code translate="no">Form.go</code>. Дизайнер трогает только первый, поэтому съесть написанное вами он не может.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
-        <h3>Обещания под тестами</h3>
-        <p>Golden-тесты фиксируют итоговую геометрию докинга и сеток, так что рефакторинг, сдвинувший контрол на пиксель, роняет сборку.</p>
-      </div>
-    </div>
+    <figure class="shot">
+      <img src="../assets/layout-design.png" alt="Форма раскладки из showcase: закреплённые панели, привязанные кнопки, flow- и table-панели, split-контейнер с вкладками.">
+      <figcaption>GoFormsShowcase с открытой формой раскладки.</figcaption>
+    </figure>
   </div>
 </section>
 
 <section id="code">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Вся идея — в двух файлах</h2>
-      <p>
-        Форма разделена ровно так же, как форма WinForms делится на
-        <code translate="no">Form1.cs</code> и <code translate="no">Form1.Designer.cs</code>, — только обе
-        половины здесь обычный Go, который можно читать, дифать и ревьюить.
-      </p>
-    </div>
+    <h2>Форма — это два файла</h2>
+    <p>
+      Ровно то разделение, которое WinForms делает между
+      <code translate="no">Form1.Designer.cs</code> и <code translate="no">Form1.cs</code>.
+      Дизайнер пишет только первый файл; второй ваш, и он не переписывается.
+    </p>
 
     <div class="split">
       <figure class="code">
-        <figcaption translate="no">MainForm-designer.go — раскладка от дизайнера</figcaption>
+        <figcaption translate="no">MainForm-designer.go</figcaption>
 <pre translate="no"><span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
 	*<span class="t">goforms.Form</span>
 	btnGreet *<span class="t">goforms.Button</span>
@@ -145,14 +99,13 @@
       </figure>
 
       <figure class="code">
-        <figcaption translate="no">MainForm.go — пишете вы</figcaption>
+        <figcaption translate="no">MainForm.go</figcaption>
 <pre translate="no"><span class="k">package</span> mainform
 
-<span class="k">import</span> <span class="s">"goforms"</span>
+<span class="k">import</span> goforms <span class="s">"github.com/Go-Forms/GoForms"</span>
 
-<span class="c">// Дизайнер создал эту заглушку в тот момент,</span>
-<span class="c">// когда вы привязали Click в панели событий.</span>
-<span class="c">// Больше он этот файл не трогает.</span>
+<span class="c">// Дизайнер написал это, когда вы привязали Click,</span>
+<span class="c">// и больше сюда не возвращается.</span>
 <span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnGreet_Click</span>(
 	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
 ) {
@@ -160,178 +113,72 @@
 }</pre>
       </figure>
     </div>
-  </div>
-</section>
 
-<section id="mapping">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Один и тот же код на двух языках</h2>
-      <p>
-        Имена, семантика и сигнатуры событий намеренно повторяют
-        <code translate="no">System.Windows.Forms</code>, поэтому знакомое
-        переносится, а не переучивается.
-      </p>
-    </div>
+    <h2>Что перенесено из WinForms</h2>
+    <ul class="facts">
+      <li><strong>Абсолютные координаты.</strong> <code translate="no">SetBounds(x, y, w, h)</code>
+        ставит контрол туда, куда сказано, считая от размера, под который форма нарисована.</li>
+      <li><strong>Docking и anchoring.</strong> Те же пять стилей закрепления и четыре флага
+        привязки, применяемые в том же порядке: закреплённые дети режут клиентскую область,
+        а остаток становится рамкой, относительно которой считаются привязки.</li>
+      <li><strong>Многоадресные события.</strong> <code translate="no">Event[T]</code> ведёт себя
+        как событие в C#: <code translate="no">Handle(h)</code> — это
+        <code translate="no">+=</code>, обработчики выполняются в порядке добавления, сигнатура
+        всегда <code translate="no">(sender any, e T)</code>.</li>
+      <li><strong>Диалоги.</strong> <code translate="no">ShowDialog</code> возвращает
+        <code translate="no">DialogResult</code>; message box, выбор файла, папки и цвета
+        отвечают через колбэк — тулкит рисует их на UI-горутине, и блокировка была бы
+        взаимной.</li>
+      <li><strong>Контейнеры.</strong> Panel, GroupBox, TabControl, SplitContainer,
+        FlowLayoutPanel, TableLayoutPanel — каждый раскладывает детей так же, как его
+        двойник в WinForms.</li>
+      <li><strong>Темы.</strong> Один литерал <code translate="no">Theme</code> задаёт вид всего
+        приложения; незаполненное поле оставляет умолчание тулкита, а не превращается в пустоту.</li>
+    </ul>
 
-    <div class="split">
-      <figure class="code">
-        <figcaption translate="no">C#</figcaption>
-<pre translate="no"><span class="k">public partial class</span> <span class="t">MainForm</span> : <span class="t">Form</span>
-{
-    <span class="k">public</span> <span class="f">MainForm</span>() =&gt; <span class="f">InitializeComponent</span>();
-
-    <span class="k">private void</span> <span class="f">btnGreet_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
-    {
-        lblHello.Text = <span class="s">"Clicked!"</span>;
-    }
-
-    <span class="k">private void</span> <span class="f">btnAbout_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
-    {
-        <span class="k">using var</span> dlg = <span class="k">new</span> <span class="t">AboutForm</span>();
-        <span class="k">if</span> (dlg.<span class="f">ShowDialog</span>(<span class="k">this</span>) == DialogResult.OK)
-            <span class="f">ApplyChanges</span>();
-    }
-}</pre>
-      </figure>
-
-      <figure class="code">
-        <figcaption translate="no">Go</figcaption>
-<pre translate="no"><span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span>{ *<span class="t">goforms.Form</span> }
-
-<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnGreet_Click</span>(
-	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
-) {
-	mf.lblHello.<span class="f">SetText</span>(<span class="s">"Clicked!"</span>)
-}
-
-<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnAbout_Click</span>(
-	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
-) {
-	<span class="k">go func</span>() {   <span class="c">// ShowDialog блокирует; никогда не в UI-потоке</span>
-		dlg := <span class="f">aboutform.NewAboutForm</span>()
-		<span class="k">if</span> dlg.<span class="f">ShowDialog</span>() == goforms.DialogOK {
-			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyChanges</span>() })
-		}
-	}()
-}</pre>
-      </figure>
-    </div>
-
-    <p style="margin-top:1.5rem;color:var(--ink-soft)">
-      Единственное настоящее отличие — последнее: GoForms рисует в одной
-      горутине, поэтому всё, что ждёт, — включая диалог, — выполняется вне её.
-      <a href="guide.html#ui-thread">В руководстве разобрано правило и те две
-      строки, которые ему удовлетворяют</a>.
+    <p class="note">
+      Геометрия закреплённых и табличных раскладок закреплена golden-тестами: правка, которая
+      сдвинет контрол на пиксель, роняет сборку, а не уезжает в релиз.
     </p>
   </div>
 </section>
 
 <section id="designer">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Дизайнер правит Go, а не <code translate="no">.resx</code></h2>
-      <p>
-        Перетащите контрол на холст — в вашем файле появится строка Go.
-        Сдвиньте его — изменятся числа. Нет промежуточного формата, нет шага
-        регенерации и нет состояния нигде, кроме исходника.
-      </p>
-    </div>
+    <h2>Дизайнер</h2>
+    <p>
+      Открытый в VS Code файл <code translate="no">*-designer.go</code> превращается в канву.
+      Перетаскивание контрола пишет вызов конструктора, его сеттеры и поле структуры;
+      перемещение переписывает границы; переименование меняет имя поля и все ссылки на него.
+      Привязка события создаёт типизированную заготовку обработчика в рукописном файле,
+      добавляет нужный импорт и переписывает существующую привязку, а не кладёт вторую рядом.
+    </p>
+    <p>
+      Каждая правка заканчивается уборкой: удаляются сеттеры, которые перекрыты более поздним
+      вызовом, повторные добавления, дублирующиеся поля. Файл записывается в форме gofmt,
+      поэтому правка из дизайнера и правка руками дают один и тот же результат. Закреплённые
+      контролы рисуются там, где они окажутся на самом деле, а не по сохранённым координатам.
+    </p>
+    <p>
+      Он же создаёт проекты (пустой, пример, под браузер, под Android), открывает тему проекта
+      как визуальный редактор и собирает и запускает проект под десктоп, браузер или
+      подключённый телефон.
+    </p>
 
-    <div class="split">
-      <figure class="diagram">
-        <svg viewBox="0 0 460 330" role="img" aria-labelledby="flow-title flow-desc">
-          <title id="flow-title">Что делает одна правка в дизайнере</title>
-          <desc id="flow-desc">Перетаскивание контрола на холсте отправляет операцию во вспомогательный CLI,
-          который переписывает designer-файл; привязка события дополнительно создаёт заглушку обработчика
-          в рукописном файле. Затем оба файла разбираются заново, и холст перерисовывается.</desc>
-
-          <defs>
-            <marker id="dg-head" viewBox="0 0 10 10" refX="8" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M0 1.5 9 5 0 8.5z" fill="currentColor"/>
-            </marker>
-          </defs>
-
-          <g class="dg-box">
-            <rect x="8" y="10" width="180" height="62" rx="10"/>
-            <text class="dg-h" x="98" y="36">Холст</text>
-            <text class="dg-p" x="98" y="55">перетащить, растянуть, задать свойство</text>
-          </g>
-
-          <g class="dg-box">
-            <rect x="8" y="132" width="180" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="98" y="158">goformsdesigner</text>
-            <text class="dg-p" x="98" y="177">parse · apply · tidy</text>
-          </g>
-
-          <g class="dg-box dg-file">
-            <rect x="256" y="10" width="196" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="354" y="36">Form-designer.go</text>
-            <text class="dg-p" x="354" y="55">поля + initializeComponent</text>
-          </g>
-
-          <g class="dg-box dg-file">
-            <rect x="256" y="132" width="196" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="354" y="158">Form.go</text>
-            <text class="dg-p" x="354" y="177">ваши обработчики, не тронуты</text>
-          </g>
-
-          <g class="dg-box dg-tidy">
-            <rect x="8" y="252" width="444" height="60" rx="10"/>
-            <text class="dg-h" x="230" y="278">Очистка после каждой правки</text>
-            <text class="dg-p" x="230" y="297">перекрытые сеттеры · наслоившиеся привязки · дубли добавлений — убраны</text>
-          </g>
-
-          <g class="dg-arrow">
-            <path d="M98 72v54"/>
-            <path d="M188 163h60"/>
-            <path d="M188 155q40 0 40-45V47h20"/>
-            <path d="M230 200v46"/>
-          </g>
-          <g class="dg-label">
-            <text x="218" y="180">заглушка</text>
-            <text x="243" y="103">правка</text>
-          </g>
-        </svg>
-      </figure>
-      <div>
-        <ol class="steps">
-          <li>
-            <h3>Бросить, перетащить, растянуть</h3>
-            <p>Панель инструментов, сгруппированная как в Visual Studio, привязка к направляющим, множественное выделение и собственный стек отмены — дизайнер пишет файлы напрямую, поэтому редакторский стек ему не подходит.</p>
-          </li>
-          <li>
-            <h3>Честный показ докинга</h3>
-            <p>Холст выполняет тот же проход раскладки, что и фреймворк, поэтому пристыкованный контрол рисуется прижатым к краю родителя — там, где он и окажется, — а не по координатам, куда его бросили.</p>
-          </li>
-          <li>
-            <h3>События в один клик</h3>
-            <p>Привяжите событие — заглушка обработчика появится в рукописной половине, с правильным типом аргумента, и курсор встанет внутрь неё.</p>
-          </li>
-          <li>
-            <h3>Файлы, которые остаются чистыми</h3>
-            <p>Каждая правка запускает проход очистки, который убирает ставшее лишним: перекрытые сеттеры, наслоившиеся привязки событий, повторные добавления. Файл после часа перетаскиваний читается так же, как после пяти минут. <a href="guide.html#designer-limits">Что он не тронет никогда</a> — расписано в руководстве.</p>
-          </li>
-        </ol>
-      </div>
-    </div>
+    <figure class="shot">
+      <img src="../assets/form-controls.png" alt="Форма GoForms с текстовыми полями, комбобоксами, чекбоксами, ползунками и счётчиками.">
+      <figcaption>Контролы ввода, каждый назван по своему двойнику из <code translate="no">System.Windows.Forms</code>.</figcaption>
+    </figure>
   </div>
 </section>
 
 <section id="controls">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Каталог контролов</h2>
-      <p>
-        Каждый тип ниже есть в панели инструментов дизайнера и понятен генератору
-        кода: бросок на холст пишет вызов конструктора, его сеттеры и поле структуры —
-        всё названо по образцу WinForms.
-      </p>
-    </div>
+    <h2>Каталог контролов</h2>
+    <p>Все типы ниже есть в тулбоксе дизайнера и понятны генератору кода.</p>
 
     <div class="catalog-group">
-      <h3>Обычные контролы</h3>
+      <h3>Основные контролы</h3>
       <div class="chips">
         <span class="chip" translate="no">Label</span><span class="chip" translate="no">Button</span><span class="chip" translate="no">TextBox</span>
         <span class="chip" translate="no">MaskedTextBox</span><span class="chip" translate="no">RichTextBox</span><span class="chip" translate="no">CheckBox</span>
@@ -367,91 +214,59 @@
         <span class="chip" translate="no">DataGridView</span><span class="chip" translate="no">ListView</span><span class="chip" translate="no">TreeView</span>
       </div>
     </div>
+
+    <figure class="shot">
+      <img src="../assets/form-data.png" alt="DataGridView с сортируемыми колонками рядом с TreeView.">
+      <figcaption><code translate="no">DataGridView</code> с сортируемыми и растягиваемыми колонками, рядом <code translate="no">TreeView</code>.</figcaption>
+    </figure>
   </div>
 </section>
 
-<section id="gallery">
+<section id="install">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Как это выглядит в работе</h2>
-      <p>Это скриншоты GoFormsShowcase — он в списке репозиториев ниже и собирается одной командой.</p>
-    </div>
-    <div class="gallery">
-      <figure>
-        <img src="../assets/form-controls.png" alt="Форма с текстовыми полями, выпадающими списками, чекбоксами, ползунками и счётчиками.">
-        <figcaption>Контролы ввода, каждый сопоставлен своему эквиваленту из <code translate="no">System.Windows.Forms</code>.</figcaption>
-      </figure>
-      <figure>
-        <img src="../assets/form-data.png" alt="DataGridView с сортируемыми колонками рядом с TreeView.">
-        <figcaption><code translate="no">DataGridView</code> с сортируемыми колонками переменной ширины рядом с <code translate="no">TreeView</code>.</figcaption>
-      </figure>
-    </div>
-  </div>
-</section>
-
-<section id="start">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Начало работы</h2>
-      <p>
-        Go 1.23 или новее, плюс C-компилятор и заголовки OpenGL, которые Fyne
-        требует на вашей платформе. На Debian и Ubuntu это
-        <code translate="no">gcc pkg-config libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev</code>.
-        Windows, Linux и macOS равноправны — CI собирает и тестирует каждый
-        коммит на всех трёх.
-      </p>
-    </div>
+    <h2>Установка</h2>
+    <p>
+      Go 1.23 или новее плюс C-тулчейн и заголовки OpenGL, которые нужны Fyne на вашей
+      платформе. На Debian или Ubuntu это
+      <code translate="no">gcc pkg-config libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev</code>.
+      Windows, Linux и macOS поддерживаются одинаково и проверяются на каждом коммите.
+    </p>
 
     <div class="split">
       <figure class="code">
-        <figcaption>Клонировать фреймворк и запустить showcase</figcaption>
-<pre translate="no"><span class="c"># Два репозитория рядом: приложения находят фреймворк</span>
-<span class="c"># через директиву `replace` на ../GoForms.</span>
-git clone git@github.com:Go-Forms/GoForms.git
-git clone git@github.com:Go-Forms/GoFormsShowcase.git
+        <figcaption>Фреймворк</figcaption>
+<pre translate="no">go get github.com/Go-Forms/GoForms
 
+<span class="c"># Либо запустить showcase — это все контролы</span>
+<span class="c"># и раскладки в одном приложении:</span>
+git clone git@github.com:Go-Forms/GoFormsShowcase.git
 <span class="k">cd</span> GoFormsShowcase &amp;&amp; go run .</pre>
       </figure>
 
       <figure class="code">
-        <figcaption>Установить дизайнер</figcaption>
-<pre translate="no"><span class="c"># Скачайте .vsix из последнего релиза, затем:</span>
-code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>.vsix
+        <figcaption>Дизайнер</figcaption>
+<pre translate="no"><span class="c"># Из последнего релиза:</span>
+code --install-extension goforms-designer-<span data-latest-version>0.10.0</span>.vsix
 
 <span class="c"># Дальше в VS Code:</span>
 <span class="c">#   Ctrl+Shift+P -> "GoForms: Create New Project..."</span>
-<span class="c"># и откройте любой *-designer.go, чтобы получить холст.</span>
-
-<span class="c"># Если он не находит Go - GUI-редактор не видит PATH,</span>
-<span class="c"># который строит ваш шелл - запустите</span>
-<span class="c"># "GoForms: Check Setup" или задайте путь один раз:</span>
-<span class="c">#   "goforms.goPath": "/usr/local/go/bin/go"</span></pre>
+<span class="c"># Откройте любой *-designer.go, чтобы получить канву.</span></pre>
       </figure>
     </div>
 
-    <div class="section-head" style="margin-top:3.5rem">
-      <h2>Четыре репозитория</h2>
-      <p>Фреймворк самостоятелен; всё остальное его использует.</p>
-    </div>
-
-    <div class="repos">
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoForms">Go-Forms/GoForms</a>
-        <p>Сам фреймворк: контролы, раскладка, события, диалоги, темы. Никаких зависимостей, кроме Fyne.</p>
-      </div>
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoFormsDesigner">Go-Forms/GoFormsDesigner</a>
-        <p>Расширение для VS Code: холст с перетаскиванием, команды создания проектов и Go-CLI, который разбирает и переписывает код.</p>
-      </div>
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoFormsShowcase">Go-Forms/GoFormsShowcase</a>
-        <p>По форме на тему — раскладка, контролы, данные, диалоги — с живым логом событий, чтобы любое утверждение с этой страницы можно было проверить запуском.</p>
-      </div>
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoFormsDemo">Go-Forms/GoFormsDemo</a>
-        <p>Приложение поменьше, ближе к тому, как выглядят первые формы реального проекта.</p>
-      </div>
-    </div>
+    <h2>Репозитории</h2>
+    <ul class="facts">
+      <li><a href="https://github.com/Go-Forms/GoForms">GoForms</a> — сам фреймворк:
+        контролы, раскладка, события, диалоги, темы.</li>
+      <li><a href="https://github.com/Go-Forms/GoFormsDesigner">GoFormsDesigner</a> —
+        расширение для VS Code и Go-инструмент, который разбирает и переписывает
+        designer-файлы.</li>
+      <li><a href="https://github.com/Go-Forms/GoFormsShowcase">GoFormsShowcase</a> — по одной
+        форме на тему, с живым журналом событий: всё, что написано на этой странице, можно
+        проверить запуском.</li>
+      <li><a href="https://github.com/Go-Forms/GoFormsDemo">GoFormsDemo</a> — пример поменьше,
+        ближе к первым формам настоящего проекта.</li>
+    </ul>
   </div>
 </section>
 
@@ -459,10 +274,9 @@ code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>
 
 <footer>
   <div class="wrap">
-    <span>GoForms — под лицензией MIT.</span>
+    <span>GoForms — лицензия MIT.</span>
     <nav>
       <a href="guide.html">Руководство</a>
-      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/controls.md">Контролы</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/layout.md">Раскладка</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/events.md">События</a>
@@ -473,10 +287,9 @@ code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>
 </footer>
 
 <script>
-// The install command names a version, and a version pinned in HTML is wrong
-// from the next release onwards. Ask GitHub what the latest one is; the text
-// already in the page is the fallback, so a blocked or rate-limited request
-// leaves a command that still works.
+// Версия в команде установки, вшитая в HTML, устаревает со следующим релизом.
+// Спрашиваем у GitHub последнюю; то, что уже написано в странице, остаётся
+// запасным вариантом, поэтому заблокированный запрос ничего не ломает.
 (function () {
 	var slots = document.querySelectorAll('[data-latest-version]');
 	if (!slots.length || !window.fetch) return;
@@ -490,7 +303,7 @@ code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>
 			if (!/^\d+\.\d+\.\d+$/.test(version)) return;
 			slots.forEach(function (el) { el.textContent = version; });
 		})
-		.catch(function () { /* keep the fallback */ });
+		.catch(function () { /* остаётся запасной вариант */ });
 })();
 </script>
 

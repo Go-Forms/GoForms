@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GoForms — WinForms for Go, with a real visual designer</title>
-<meta name="description" content="GoForms is a Windows Forms-style GUI framework for Go: absolute layout, docking and anchoring, C#-style events, and a drag-and-drop designer that edits your Go source directly inside VS Code.">
+<title>GoForms — a WinForms-style GUI framework for Go</title>
+<meta name="description" content="GoForms is a Windows Forms-style GUI framework for Go: absolute layout, docking and anchoring, multicast events, and a VS Code designer that edits Go source directly.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="https://go-forms.github.io/GoForms/">
 <link rel="alternate" hreflang="ru" href="https://go-forms.github.io/GoForms/ru/">
 <link rel="alternate" hreflang="x-default" href="https://go-forms.github.io/GoForms/">
 <link rel="stylesheet" href="style.css">
-<meta property="og:title" content="GoForms — WinForms for Go">
-<meta property="og:description" content="A Windows Forms-style GUI framework for Go, with a drag-and-drop designer for VS Code that edits your Go source directly.">
+<meta property="og:title" content="GoForms — a WinForms-style GUI framework for Go">
+<meta property="og:description" content="Absolute layout, docking and anchoring, multicast events, and a VS Code designer that edits Go source directly.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="assets/layout-design.png">
 </head>
@@ -24,11 +24,10 @@
       <span>GoForms</span>
     </a>
     <nav>
-      <a href="#why">Why</a>
       <a href="#code">Code</a>
       <a href="#designer">Designer</a>
       <a href="#controls">Controls</a>
-      <a href="#start">Get started</a>
+      <a href="#install">Install</a>
       <a href="guide.html">Guide</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
@@ -41,91 +40,47 @@
 
 <main id="top">
 
-<section class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow">Go · Desktop · Cross-platform</span>
-      <h1>If you know WinForms,<br>you already know <span class="accent">GoForms</span>.</h1>
-      <p class="lede">
-        A form. Controls at <code translate="no">X, Y, Width, Height</code>. Docking and anchoring
-        that survive a resize. Events you attach with <code translate="no">.Handle(…)</code>. And a
-        drag-and-drop designer that writes plain, readable Go — not a resource
-        blob you are never meant to open.
-      </p>
-      <div class="cta">
-        <a class="btn btn-primary" href="#start">Get started</a>
-        <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoFormsDesigner/releases/latest">Download the designer</a>
-        <a class="btn btn-ghost" href="guide.html">Read the guide</a>
-        <a class="btn btn-ghost" href="https://github.com/Go-Forms/GoForms">Browse the source</a>
-      </div>
-    </div>
-    <figure class="hero-shot">
-      <img src="assets/layout-design.png" alt="The GoForms showcase running its layout form: five coloured docked panels, anchored buttons, a flow layout panel, a table layout panel and a split container with tabs.">
-      <figcaption>GoFormsShowcase, running. Every panel above is a real container carrying real children.</figcaption>
-    </figure>
-  </div>
-</section>
-
-<section id="why">
+<section class="intro">
   <div class="wrap">
-    <div class="section-head">
-      <h2>A compatibility layer, not a renaming</h2>
-      <p>
-        Rendering, windowing and input are handled by <a href="https://fyne.io">Fyne</a>
-        underneath — so you get GPU-accelerated drawing on Windows, Linux and macOS
-        without writing a message loop. Everything above that line is WinForms.
-      </p>
-    </div>
+    <h1>GoForms</h1>
+    <p class="lead">
+      A GUI framework for Go that follows <code translate="no">System.Windows.Forms</code>:
+      controls placed at <code translate="no">X, Y, Width, Height</code>, docking and
+      anchoring, multicast events with the <code translate="no">(sender, e)</code>
+      signature, and forms split into a generated half and a hand-written half.
+    </p>
+    <p>
+      Rendering, windowing and input come from <a href="https://fyne.io">Fyne</a>, so
+      it draws with the GPU on Windows, Linux and macOS, and also builds for
+      WebAssembly and Android. Everything above that line — the control catalogue,
+      the layout rules, the event model — is the WinForms API, named after the types
+      it stands in for.
+    </p>
+    <p>
+      The designer is a VS Code extension. It reads and writes the same Go file you
+      would write by hand: no <code translate="no">.resx</code>, no generated resource
+      blob, nothing that only a tool can open.
+    </p>
 
-    <div class="cards">
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
-        <h3>Absolute positioning</h3>
-        <p>Controls go where you put them. No flex containers to fight, no layout algebra to reverse-engineer when something lands in the wrong place.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 4v16M4 14h16"/></svg></div>
-        <h3>Docking &amp; anchoring</h3>
-        <p>The same five dock styles and four anchor flags, with the same edge-carving order — plus flow, table and split containers when a grid is easier than arithmetic.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg></div>
-        <h3>Real multicast events</h3>
-        <p><code translate="no">Event[T]</code> behaves like a C# event: <code translate="no">.Handle(h)</code> is <code translate="no">+=</code>, handlers run in registration order, and the signature is always <code translate="no">(sender any, e T)</code>.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></div>
-        <h3>34 controls, one catalog</h3>
-        <p>From <code translate="no">Label</code> to <code translate="no">DataGridView</code>, each named after the <code translate="no">System.Windows.Forms</code> type it stands in for — so the docs you already know still apply.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5v8l-7 5-7-5z"/></svg></div>
-        <h3>The partial-class split</h3>
-        <p>Layout lives in <code translate="no">Form-designer.go</code>, your code in <code translate="no">Form.go</code>. The designer only ever touches the first, so it cannot eat what you wrote.</p>
-      </div>
-      <div class="card">
-        <div class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
-        <h3>Held to its promises</h3>
-        <p>Golden-file tests pin the arranged geometry of docked and gridded layouts, so a refactor that moves a control by a pixel fails the build.</p>
-      </div>
-    </div>
+    <figure class="shot">
+      <img src="assets/layout-design.png" alt="The showcase's layout form: docked panels, anchored buttons, a flow layout panel, a table layout panel, and a split container with tabs.">
+      <figcaption>GoFormsShowcase running its layout form.</figcaption>
+    </figure>
   </div>
 </section>
 
 <section id="code">
   <div class="wrap">
-    <div class="section-head">
-      <h2>The whole idea, in two files</h2>
-      <p>
-        A form is split exactly as a WinForms form is split into
-        <code translate="no">Form1.cs</code> and <code translate="no">Form1.Designer.cs</code> — except both halves
-        here are ordinary Go you can read, diff and review.
-      </p>
-    </div>
+    <h2>A form is two files</h2>
+    <p>
+      The split is the one WinForms makes between <code translate="no">Form1.Designer.cs</code>
+      and <code translate="no">Form1.cs</code>. The designer writes the first file only;
+      the second is yours and is never rewritten.
+    </p>
 
     <div class="split">
       <figure class="code">
-        <figcaption translate="no">MainForm-designer.go — laid out by the designer</figcaption>
+        <figcaption translate="no">MainForm-designer.go</figcaption>
 <pre translate="no"><span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
 	*<span class="t">goforms.Form</span>
 	btnGreet *<span class="t">goforms.Button</span>
@@ -145,14 +100,13 @@
       </figure>
 
       <figure class="code">
-        <figcaption translate="no">MainForm.go — written by you</figcaption>
+        <figcaption translate="no">MainForm.go</figcaption>
 <pre translate="no"><span class="k">package</span> mainform
 
-<span class="k">import</span> <span class="s">"goforms"</span>
+<span class="k">import</span> goforms <span class="s">"github.com/Go-Forms/GoForms"</span>
 
-<span class="c">// The designer generated this stub the moment you</span>
-<span class="c">// wired Click in the Events panel. It never</span>
-<span class="c">// touches the file again.</span>
+<span class="c">// Written by the designer when Click was wired,</span>
+<span class="c">// and left alone from then on.</span>
 <span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnGreet_Click</span>(
 	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
 ) {
@@ -160,175 +114,72 @@
 }</pre>
       </figure>
     </div>
-  </div>
-</section>
 
-<section id="mapping">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>The same code, in both languages</h2>
-      <p>
-        Names, semantics and event signatures mirror
-        <code translate="no">System.Windows.Forms</code> deliberately, so what
-        you already know transfers instead of having to be relearned.
-      </p>
-    </div>
+    <h2>What carries over from WinForms</h2>
+    <ul class="facts">
+      <li><strong>Absolute positioning.</strong> <code translate="no">SetBounds(x, y, w, h)</code>
+        puts a control where you asked, measured against the size the form was designed at.</li>
+      <li><strong>Docking and anchoring.</strong> The same five dock styles and four anchor
+        flags, applied in the same order: docked children carve up the client area, and
+        what is left is the frame anchors are measured against.</li>
+      <li><strong>Multicast events.</strong> <code translate="no">Event[T]</code> works like a
+        C# event. <code translate="no">Handle(h)</code> is <code translate="no">+=</code>,
+        handlers run in the order they were added, and every signature is
+        <code translate="no">(sender any, e T)</code>.</li>
+      <li><strong>Dialogs.</strong> <code translate="no">ShowDialog</code> returns a
+        <code translate="no">DialogResult</code>; message boxes, file pickers, folder and
+        colour pickers report through callbacks, because the toolkit draws them on the
+        UI goroutine and blocking it would deadlock.</li>
+      <li><strong>Containers.</strong> Panel, GroupBox, TabControl, SplitContainer,
+        FlowLayoutPanel, TableLayoutPanel — each laying its children out the way its
+        WinForms counterpart does.</li>
+      <li><strong>Themes.</strong> One <code translate="no">Theme</code> literal decides how
+        the application looks; a field left unset keeps the toolkit's default rather than
+        becoming a blank.</li>
+    </ul>
 
-    <div class="split">
-      <figure class="code">
-        <figcaption translate="no">C#</figcaption>
-<pre translate="no"><span class="k">public partial class</span> <span class="t">MainForm</span> : <span class="t">Form</span>
-{
-    <span class="k">public</span> <span class="f">MainForm</span>() =&gt; <span class="f">InitializeComponent</span>();
-
-    <span class="k">private void</span> <span class="f">btnGreet_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
-    {
-        lblHello.Text = <span class="s">"Clicked!"</span>;
-    }
-
-    <span class="k">private void</span> <span class="f">btnAbout_Click</span>(<span class="k">object</span> s, <span class="t">EventArgs</span> e)
-    {
-        <span class="k">using var</span> dlg = <span class="k">new</span> <span class="t">AboutForm</span>();
-        <span class="k">if</span> (dlg.<span class="f">ShowDialog</span>(<span class="k">this</span>) == DialogResult.OK)
-            <span class="f">ApplyChanges</span>();
-    }
-}</pre>
-      </figure>
-
-      <figure class="code">
-        <figcaption translate="no">Go</figcaption>
-<pre translate="no"><span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span>{ *<span class="t">goforms.Form</span> }
-
-<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnGreet_Click</span>(
-	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
-) {
-	mf.lblHello.<span class="f">SetText</span>(<span class="s">"Clicked!"</span>)
-}
-
-<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnAbout_Click</span>(
-	sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>,
-) {
-	<span class="k">go func</span>() {   <span class="c">// ShowDialog blocks; never on the UI thread</span>
-		dlg := <span class="f">aboutform.NewAboutForm</span>()
-		<span class="k">if</span> dlg.<span class="f">ShowDialog</span>() == goforms.DialogOK {
-			<span class="f">fyne.Do</span>(<span class="k">func</span>() { mf.<span class="f">applyChanges</span>() })
-		}
-	}()
-}</pre>
-      </figure>
-    </div>
-
-    <p style="margin-top:1.5rem;color:var(--ink-soft)">
-      The one real difference is the last one: GoForms draws on a single
-      goroutine, so anything that waits — a dialog included — runs off it.
-      <a href="guide.html#ui-thread">The guide explains the rule and the two
-      lines that satisfy it</a>.
+    <p class="note">
+      Golden-file tests pin the arranged geometry of docked and gridded layouts, so a
+      change that moves a control by a pixel fails the build rather than shipping.
     </p>
   </div>
 </section>
 
 <section id="designer">
   <div class="wrap">
-    <div class="section-head">
-      <h2>The designer edits Go, not a <code translate="no">.resx</code></h2>
-      <p>
-        Drag a control onto the canvas and a line of Go appears in your file.
-        Move it and the numbers change. There is no intermediate format, no
-        regeneration step, and no state kept anywhere but the source.
-      </p>
-    </div>
+    <h2>The designer</h2>
+    <p>
+      Opening a <code translate="no">*-designer.go</code> file in VS Code opens the canvas.
+      Dragging a control writes its constructor call, its setters and its struct field;
+      moving it rewrites the bounds; renaming it renames the field and every reference to
+      it. Wiring an event generates a typed handler stub in the hand-written file, adds
+      the import if it is missing, and rewrites the existing wiring instead of stacking a
+      second one.
+    </p>
+    <p>
+      Every edit ends with a cleanup pass that removes what the edit made redundant —
+      setters a later call overrides, repeated adds, duplicate field declarations — and
+      the file is written back gofmt-formatted, so a designer edit and a hand edit produce
+      the same file. Docked controls are drawn where they will really appear rather than
+      at their stored coordinates.
+    </p>
+    <p>
+      It also scaffolds projects (empty, example, browser or Android), opens a project's
+      theme as a visual editor, and builds and runs the project for the desktop, the
+      browser or a connected phone.
+    </p>
 
-    <div class="split">
-      <figure class="diagram">
-        <svg viewBox="0 0 460 330" role="img" aria-labelledby="flow-title flow-desc">
-          <title id="flow-title">What one designer edit does</title>
-          <desc id="flow-desc">Dragging a control on the canvas sends an operation to the helper CLI, which
-          rewrites the designer file; wiring an event additionally creates a handler stub in the
-          hand-written file. Both files are then re-parsed to redraw the canvas.</desc>
-
-          <defs>
-            <marker id="dg-head" viewBox="0 0 10 10" refX="8" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M0 1.5 9 5 0 8.5z" fill="currentColor"/>
-            </marker>
-          </defs>
-
-          <g class="dg-box">
-            <rect x="8" y="10" width="180" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="98" y="36">Canvas</text>
-            <text class="dg-p" x="98" y="55">drag, resize, set a property</text>
-          </g>
-
-          <g class="dg-box">
-            <rect x="8" y="132" width="180" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="98" y="158">goformsdesigner</text>
-            <text class="dg-p" x="98" y="177">parse · apply · tidy</text>
-          </g>
-
-          <g class="dg-box dg-file">
-            <rect x="256" y="10" width="196" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="354" y="36">Form-designer.go</text>
-            <text class="dg-p" x="354" y="55">fields + initializeComponent</text>
-          </g>
-
-          <g class="dg-box dg-file">
-            <rect x="256" y="132" width="196" height="62" rx="10"/>
-            <text class="dg-h" translate="no" x="354" y="158">Form.go</text>
-            <text class="dg-p" x="354" y="177">your handlers, untouched</text>
-          </g>
-
-          <g class="dg-box dg-tidy">
-            <rect x="8" y="252" width="444" height="60" rx="10"/>
-            <text class="dg-h" translate="no" x="230" y="278">Tidy, after every edit</text>
-            <text class="dg-p" x="230" y="297">superseded setters · stacked wirings · duplicate adds — removed</text>
-          </g>
-
-          <g class="dg-arrow">
-            <path d="M98 72v54"/>
-            <path d="M188 163h60"/>
-            <path d="M188 155q40 0 40-45V47h20"/>
-            <path d="M230 200v46"/>
-          </g>
-          <g class="dg-label">
-            <text x="218" y="180">stub</text>
-            <text x="243" y="103">edit</text>
-          </g>
-        </svg>
-      </figure>
-      <div>
-        <ol class="steps">
-          <li>
-            <h3>Drop, drag, resize</h3>
-            <p>A toolbox grouped the way the Visual Studio one is, snapping, multi-select, and an undo stack of its own — the designer writes files directly, so it does not borrow the editor's.</p>
-          </li>
-          <li>
-            <h3>Docking shown honestly</h3>
-            <p>The canvas runs the framework's own arrange pass, so a docked control is drawn glued to its parent's edge — where it will actually be — instead of at the coordinates it was dropped at.</p>
-          </li>
-          <li>
-            <h3>Events in one click</h3>
-            <p>Wire an event and the handler stub is created in the hand-written half, with the correct argument type, and your cursor is put inside it.</p>
-          </li>
-          <li>
-            <h3>Files that stay clean</h3>
-            <p>Every edit runs a tidy pass that drops what the edit made redundant: superseded setters, stacked event wirings, duplicated adds. The file after an hour of dragging reads like the file after five minutes of it. <a href="guide.html#designer-limits">What it will never touch</a> is spelled out in the guide.</p>
-          </li>
-        </ol>
-      </div>
-    </div>
+    <figure class="shot">
+      <img src="assets/form-controls.png" alt="A GoForms form with text boxes, combo boxes, check boxes, track bars and up-down controls.">
+      <figcaption>Input controls, each named after its <code translate="no">System.Windows.Forms</code> equivalent.</figcaption>
+    </figure>
   </div>
 </section>
 
 <section id="controls">
   <div class="wrap">
-    <div class="section-head">
-      <h2>The control catalog</h2>
-      <p>
-        Every type below is in the designer's toolbox and understood by the code
-        generator — dropping one writes a constructor call, its setters, and its
-        struct field, all named after their WinForms counterparts.
-      </p>
-    </div>
+    <h2>Control catalogue</h2>
+    <p>Every type below is in the designer's toolbox and understood by the code generator.</p>
 
     <div class="catalog-group">
       <h3>Common controls</h3>
@@ -354,7 +205,7 @@
     </div>
 
     <div class="catalog-group">
-      <h3>Menus &amp; toolbars</h3>
+      <h3>Menus and toolbars</h3>
       <div class="chips">
         <span class="chip" translate="no">MenuStrip</span><span class="chip" translate="no">ToolStrip</span>
         <span class="chip" translate="no">StatusStrip</span><span class="chip" translate="no">ContextMenu</span>
@@ -367,91 +218,58 @@
         <span class="chip" translate="no">DataGridView</span><span class="chip" translate="no">ListView</span><span class="chip" translate="no">TreeView</span>
       </div>
     </div>
+
+    <figure class="shot">
+      <img src="assets/form-data.png" alt="A DataGridView with sortable columns beside a TreeView.">
+      <figcaption><code translate="no">DataGridView</code> with sortable, resizable columns, next to a <code translate="no">TreeView</code>.</figcaption>
+    </figure>
   </div>
 </section>
 
-<section id="gallery">
+<section id="install">
   <div class="wrap">
-    <div class="section-head">
-      <h2>What it looks like running</h2>
-      <p>All of these are screenshots of GoFormsShowcase, which is in the repositories below and builds with one command.</p>
-    </div>
-    <div class="gallery">
-      <figure>
-        <img src="assets/form-controls.png" alt="A form showing text boxes, combo boxes, check boxes, track bars and up-down controls.">
-        <figcaption>Input controls, each mapped to its <code translate="no">System.Windows.Forms</code> equivalent.</figcaption>
-      </figure>
-      <figure>
-        <img src="assets/form-data.png" alt="A DataGridView with sortable columns beside a TreeView.">
-        <figcaption><code translate="no">DataGridView</code> with sortable, resizable columns, next to a <code translate="no">TreeView</code>.</figcaption>
-      </figure>
-    </div>
-  </div>
-</section>
-
-<section id="start">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Get started</h2>
-      <p>
-        Go 1.23 or newer, plus the C toolchain and OpenGL headers Fyne needs on
-        your platform. On Debian or Ubuntu that is
-        <code translate="no">gcc pkg-config libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev</code>.
-        Windows, Linux and macOS are all first-class — CI builds and tests
-        every commit on all three.
-      </p>
-    </div>
+    <h2>Install</h2>
+    <p>
+      Go 1.23 or newer, plus the C toolchain and OpenGL headers Fyne needs on your
+      platform. On Debian or Ubuntu:
+      <code translate="no">gcc pkg-config libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev</code>.
+      Windows, Linux and macOS are all supported and all tested on every commit.
+    </p>
 
     <div class="split">
       <figure class="code">
-        <figcaption>Clone the framework and run the showcase</figcaption>
-<pre translate="no"><span class="c"># Both repositories, side by side - the apps find the</span>
-<span class="c"># framework through a `replace` directive on ../GoForms.</span>
-git clone git@github.com:Go-Forms/GoForms.git
-git clone git@github.com:Go-Forms/GoFormsShowcase.git
+        <figcaption>The framework</figcaption>
+<pre translate="no">go get github.com/Go-Forms/GoForms
 
+<span class="c"># Or run the showcase, which is every control</span>
+<span class="c"># and layout in one application:</span>
+git clone git@github.com:Go-Forms/GoFormsShowcase.git
 <span class="k">cd</span> GoFormsShowcase &amp;&amp; go run .</pre>
       </figure>
 
       <figure class="code">
-        <figcaption>Install the designer</figcaption>
-<pre translate="no"><span class="c"># Grab the .vsix from the latest release, then:</span>
-code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>.vsix
+        <figcaption>The designer</figcaption>
+<pre translate="no"><span class="c"># From the latest release:</span>
+code --install-extension goforms-designer-<span data-latest-version>0.10.0</span>.vsix
 
 <span class="c"># Then, in VS Code:</span>
 <span class="c">#   Ctrl+Shift+P -> "GoForms: Create New Project..."</span>
-<span class="c"># and open any *-designer.go file to get the canvas.</span>
-
-<span class="c"># If it cannot find your Go toolchain - a GUI editor</span>
-<span class="c"># does not see the PATH your shell builds - run</span>
-<span class="c"># "GoForms: Check Setup", or set it once:</span>
-<span class="c">#   "goforms.goPath": "/usr/local/go/bin/go"</span></pre>
+<span class="c"># Open any *-designer.go file to get the canvas.</span></pre>
       </figure>
     </div>
 
-    <div class="section-head" style="margin-top:3.5rem">
-      <h2>The four repositories</h2>
-      <p>The framework stands alone; everything else consumes it.</p>
-    </div>
-
-    <div class="repos">
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoForms">Go-Forms/GoForms</a>
-        <p>The framework itself: controls, layout, events, dialogs, theming. No dependencies beyond Fyne.</p>
-      </div>
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoFormsDesigner">Go-Forms/GoFormsDesigner</a>
-        <p>The VS Code extension: the drag-and-drop canvas, the scaffolding commands, and the Go CLI that does the parsing and rewriting.</p>
-      </div>
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoFormsShowcase">Go-Forms/GoFormsShowcase</a>
-        <p>One form per subject — layout, controls, data, dialogs — with a live event log, so every claim on this page can be checked by running it.</p>
-      </div>
-      <div class="repo">
-        <a href="https://github.com/Go-Forms/GoFormsDemo">Go-Forms/GoFormsDemo</a>
-        <p>A smaller sample app, closer to what a real project's first few forms look like.</p>
-      </div>
-    </div>
+    <h2>Repositories</h2>
+    <ul class="facts">
+      <li><a href="https://github.com/Go-Forms/GoForms">GoForms</a> — the framework:
+        controls, layout, events, dialogs, theming.</li>
+      <li><a href="https://github.com/Go-Forms/GoFormsDesigner">GoFormsDesigner</a> — the
+        VS Code extension and the Go tool that parses and rewrites designer files.</li>
+      <li><a href="https://github.com/Go-Forms/GoFormsShowcase">GoFormsShowcase</a> — one
+        form per subject, with a live event log, so anything on this page can be checked
+        by running it.</li>
+      <li><a href="https://github.com/Go-Forms/GoFormsDemo">GoFormsDemo</a> — a smaller
+        sample, closer to a real project's first few forms.</li>
+    </ul>
   </div>
 </section>
 
@@ -462,7 +280,6 @@ code --install-extension goforms-designer-<span data-latest-version>0.9.0</span>
     <span>GoForms — MIT licensed.</span>
     <nav>
       <a href="guide.html">Guide</a>
-      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Reference</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/controls.md">Controls</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/layout.md">Layout</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/events.md">Events</a>

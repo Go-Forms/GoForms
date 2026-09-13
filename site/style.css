@@ -1,4 +1,4 @@
-/* GoForms landing page.
+/* GoForms site.
    One palette, defined light-first on :root and re-stated for the two ways a
    visitor can end up dark: an explicit choice, and the system default. */
 :root {
@@ -117,116 +117,42 @@ code, pre, kbd {
 .topbar nav a { color: var(--ink-soft); text-decoration: none; }
 .topbar nav a:hover { color: var(--accent); }
 
-/* ---- Hero ------------------------------------------------------------ */
+/* ---- Intro and prose ------------------------------------------------- */
 
-.hero {
-  padding: clamp(3rem, 8vw, 6rem) 0 3rem;
-  background:
-    radial-gradient(900px 420px at 15% -10%, var(--accent-soft), transparent 65%),
-    radial-gradient(700px 380px at 92% 0%, color-mix(in srgb, var(--accent-soft) 70%, transparent), transparent 60%);
+.intro { padding-top: clamp(2.5rem, 5vw, 3.5rem); }
+.intro h1 { margin: 0 0 1rem; }
+.intro p, section > .wrap > p { max-width: var(--measure); color: var(--ink-soft); }
+.lead { font-size: clamp(1.02rem, 1.6vw, 1.14rem); color: var(--ink) !important; }
+
+h2 {
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+  letter-spacing: -.02em;
+  margin: 2.8rem 0 1rem;
 }
+section > .wrap > h2:first-child { margin-top: 0; }
 
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: clamp(2rem, 5vw, 4rem);
-  align-items: center;
-}
+ul.facts { max-width: var(--measure); padding-left: 1.2rem; color: var(--ink-soft); }
+ul.facts li { margin-bottom: .6rem; }
+ul.facts strong { color: var(--ink); }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  font-size: .8rem;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-  background: var(--accent-soft);
-  border-radius: 999px;
-  padding: .35rem .8rem;
-}
-
-h1 {
-  font-size: clamp(2.2rem, 5.5vw, 3.4rem);
-  line-height: 1.08;
-  letter-spacing: -.03em;
-  margin: 1rem 0 .8rem;
-}
-h1 .accent { color: var(--accent); }
-
-.lede { font-size: clamp(1.02rem, 1.6vw, 1.16rem); color: var(--ink-soft); max-width: 52ch; }
-
-.cta { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.8rem; }
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .68rem 1.25rem;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: .95rem;
-  text-decoration: none;
-  border: 1px solid transparent;
-  transition: transform .12s ease, box-shadow .12s ease;
-}
-.btn:hover { transform: translateY(-1px); }
-.btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow); }
-.btn-primary:hover { color: #fff; }
-.btn-ghost { background: var(--bg-raised); color: var(--ink); border-color: var(--line); }
-.btn-ghost:hover { color: var(--ink); border-color: var(--accent); }
-
-.hero-shot {
-  margin: 0;
-  border-radius: var(--radius);
-  overflow: hidden;
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
+.note {
+  max-width: var(--measure);
+  padding: .9rem 1.1rem;
   background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: .95rem;
 }
-.hero-shot figcaption {
-  padding: .75rem .95rem;
-  border-top: 1px solid var(--line);
-  font-size: .84rem;
-  color: var(--ink-faint);
-}
+
+figure.shot { margin: 2rem 0 0; }
+figure.shot img { border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
+figure.shot figcaption { margin-top: .6rem; font-size: .88rem; color: var(--ink-faint); }
 
 /* ---- Sections -------------------------------------------------------- */
 
 section { padding: clamp(3rem, 7vw, 5.5rem) 0; }
 section + section { border-top: 1px solid var(--line); }
-
-.section-head { max-width: var(--measure); margin-bottom: 2.5rem; }
-.section-head h2 {
-  font-size: clamp(1.6rem, 3.2vw, 2.1rem);
-  letter-spacing: -.02em;
-  margin: 0 0 .6rem;
-}
-.section-head p { color: var(--ink-soft); margin: 0; }
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.1rem;
-}
-
-.card {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1.4rem;
-}
-.card h3 { margin: .6rem 0 .5rem; font-size: 1.05rem; letter-spacing: -.01em; }
-.card p { margin: 0; color: var(--ink-soft); font-size: .95rem; }
-.card .glyph {
-  width: 38px; height: 38px;
-  display: grid; place-items: center;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-.card .glyph svg { width: 20px; height: 20px; }
 
 /* ---- Code ------------------------------------------------------------ */
 
@@ -293,46 +219,6 @@ pre {
 
 /* ---- Repo table ------------------------------------------------------ */
 
-.repos { display: grid; gap: .8rem; }
-.repo {
-  display: grid;
-  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
-  gap: .35rem 1.4rem;
-  align-items: baseline;
-  padding: 1rem 1.2rem;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-.repo a { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.repo p { margin: 0; color: var(--ink-soft); font-size: .95rem; }
-
-/* ---- Steps ----------------------------------------------------------- */
-
-ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 1.4rem; }
-ol.steps > li { counter-increment: step; padding-left: 3.1rem; position: relative; }
-ol.steps > li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0; top: -.1rem;
-  width: 2.1rem; height: 2.1rem;
-  display: grid; place-items: center;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 700;
-  font-size: .9rem;
-}
-ol.steps h3 { margin: 0 0 .35rem; font-size: 1.02rem; }
-ol.steps p { margin: 0 0 .7rem; color: var(--ink-soft); }
-
-/* ---- Gallery --------------------------------------------------------- */
-
-.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.2rem; }
-.gallery figure { margin: 0; }
-.gallery img { border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
-.gallery figcaption { margin-top: .6rem; font-size: .88rem; color: var(--ink-faint); }
-
 /* ---- Footer ---------------------------------------------------------- */
 
 footer {
@@ -347,52 +233,7 @@ footer a { color: var(--ink-soft); text-decoration: none; }
 footer a:hover { color: var(--accent); }
 
 @media (max-width: 860px) {
-  .hero-grid { grid-template-columns: 1fr; }
-  .repo { grid-template-columns: 1fr; }
-  .topbar nav { display: none; }
-}
-
-/* ---- Diagram --------------------------------------------------------- */
-
-figure.diagram {
-  margin: 0;
-  padding: 1.4rem 1.2rem;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-figure.diagram svg { width: 100%; height: auto; overflow: visible; }
-
-.dg-box rect { fill: var(--bg-sunken); stroke: var(--line); stroke-width: 1.5; }
-.dg-box.dg-file rect { fill: var(--accent-soft); stroke: color-mix(in srgb, var(--accent) 45%, transparent); }
-.dg-box.dg-tidy rect { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
-
-.dg-h {
-  fill: var(--ink);
-  font: 600 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  text-anchor: middle;
-}
-.dg-p {
-  fill: var(--ink-faint);
-  font: 11px -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  text-anchor: middle;
-}
-.dg-arrow {
-  /* The marker paints with currentColor, which it inherits from here. */
-  color: var(--ink-faint);
-}
-.dg-arrow path {
-  fill: none;
-  stroke: var(--ink-faint);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  marker-end: url(#dg-head);
-}
-.dg-label text {
-  fill: var(--ink-faint);
-  font: 10px -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  text-anchor: middle;
+    .topbar nav { display: none; }
 }
 
 /* ---- Language switch -------------------------------------------------- */
