@@ -98,6 +98,34 @@ tree.AddNode(root, "main.go")
 `DataGridView` supports frozen columns and rows, per-column alignment and
 sizing modes, read-only cells, and click-then-click-again editing.
 
+A column can also hold something other than text, and can carry data without
+showing it:
+
+```go
+grid := goforms.NewDataGridView("ID", "Customer", "Status", "")
+grid.SetColumnHidden(0, true)                            // the row's id, carried but not drawn
+grid.SetColumnKind(2, goforms.GridColumnCheckBox)        // "true"/"false", ticked in place
+grid.SetColumnKind(3, goforms.GridColumnButton)          // a per-row action
+grid.SetColumnButtonText(3, "Assign")
+
+grid.AddRow("1001", "Acme", "true", "")
+grid.CellButtonClick.Handle(func(_ any, e goforms.GridCellEventArgs) {
+    id := grid.Cell(e.Row, 0)   // the hidden column is still readable
+    assign(id)
+})
+```
+
+`GridColumnButton` makes every cell a button and reports presses through
+`CellButtonClick`; leaving `ButtonText` empty uses each cell's own value as its
+caption, so one column can say "Approve" on one row and "Revoke" on the next.
+`GridColumnCheckBox` stores `"true"`/`"false"` and reports toggles through
+`CellValueChanged`, like any other edit.
+
+Hiding a column never renumbers anything: `Cell`, `CellByName`, `AddRow` and
+every event argument keep speaking in column indices, so a hidden id column is
+read exactly as if it were on screen. `VisibleColumns()` reports what is
+actually drawn, in order.
+
 ## Components without a visual presence
 
 | Type | WinForms | Notes |

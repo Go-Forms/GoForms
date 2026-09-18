@@ -245,6 +245,7 @@ func (c *CheckedListBox) IsChecked(item string) bool {
 type MonthCalendar struct {
 	ControlBase
 	cal      *widget.Calendar
+	holder   *fyne.Container
 	selected time.Time
 
 	// DateChanged mirrors MonthCalendar.DateChanged.
@@ -254,13 +255,66 @@ type MonthCalendar struct {
 // NewMonthCalendar mirrors `new MonthCalendar()` showing the given month.
 func NewMonthCalendar(shown time.Time) *MonthCalendar {
 	m := &MonthCalendar{selected: shown}
+	// The grid lives inside a container the control owns, rather than being
+	// the control's object itself: widget.Calendar takes its month in the
+	// constructor and has no setter, so showing a different month means
+	// building a new one - and whatever is parented into a form has to stay
+	// the same object across that swap, or the form goes on drawing the grid
+	// that was replaced. See SetValue.
+	m.holder = container.NewStack(m.newGrid(shown))
+	w, h := m.fitted(260, 240)
+	m.initBaseComposite(m.holder, w, h)
+	return m
+}
+
+// newGrid builds a calendar for one month, wired to report picks.
+func (m *MonthCalendar) newGrid(shown time.Time) *widget.Calendar {
 	cal := widget.NewCalendar(shown, func(t time.Time) {
 		m.selected = t
 		m.DateChanged.Fire(m.self(), EventArgs{})
 	})
 	m.cal = cal
-	m.initBaseComposite(cal, 260, 240)
-	return m
+	return cal
+}
+
+// fitted raises a requested size to what one month grid actually needs.
+//
+// Fyne's Calendar reserves six week rows whatever month is shown, and simply
+// draws itself clipped when given less room - there is no scrolling and no
+// complaint, so the bottom row of days is on screen but outside the control
+// and nothing there can be clicked. Since a MonthCalendar cannot usefully be
+// smaller than one month either (WinForms will not resize it below one month
+// block), the honest answer to "make it 240 tall" is to make it as tall as a
+// month and let the layout deal with it.
+func (m *MonthCalendar) fitted(w, h float32) (float32, float32) {
+	if m.cal == nil {
+		return w, h
+	}
+	min := m.cal.MinSize()
+	if min.Width > w {
+		w = min.Width
+	}
+	if min.Height > h {
+		h = min.Height
+	}
+	return w, h
+}
+
+// MinimumSize reports the smallest size at which every day of the month is
+// reachable - the floor SetBounds enforces.
+func (m *MonthCalendar) MinimumSize() (width, height float32) {
+	return m.fitted(0, 0)
+}
+
+// SetBounds shadows ControlBase.SetBounds to keep the control at least one
+// month tall; see fitted.
+func (m *MonthCalendar) SetBounds(x, y, w, h float32) {
+	fw, fh := m.fitted(w, h)
+	m.ControlBase.SetBounds(x, y, fw, fh)
+}
+
+func (m *MonthCalendar) SetSize(w, h float32) {
+	m.SetBounds(m.Bounds().X, m.Bounds().Y, w, h)
 }
 
 // SelectionStart mirrors MonthCalendar.SelectionStart (single selection).
@@ -268,6 +322,21 @@ func (m *MonthCalendar) SelectionStart() time.Time { return m.selected }
 
 // Value is an alias for SelectionStart, matching how most code reads it.
 func (m *MonthCalendar) Value() time.Time { return m.selected }
+
+// SetValue mirrors MonthCalendar.SetDate: it selects a date and shows the
+// month it falls in. It does not fire DateChanged - like every other setter
+// here, a value the program set is not a value the user picked.
+func (m *MonthCalendar) SetValue(t time.Time) {
+	m.selected = t
+	if m.holder == nil {
+		return
+	}
+	m.holder.Objects = []fyne.CanvasObject{m.newGrid(t)}
+	m.holder.Refresh()
+}
+
+// SetSelectionStart is the WinForms spelling of SetValue.
+func (m *MonthCalendar) SetSelectionStart(t time.Time) { m.SetValue(t) }
 
 // --- DomainUpDown -------------------------------------------------------
 

@@ -66,6 +66,26 @@ func (s ScrollBars) vertical() bool {
 	return s == ScrollBarsVertical || s == ScrollBarsBoth
 }
 
+// GridColumnKind mirrors the DataGridViewColumn subclasses: what a cell in
+// this column *is*, as opposed to what it says.
+type GridColumnKind int
+
+const (
+	// GridColumnText is an ordinary text cell, editable unless the column or
+	// the grid is read-only. This is the default and the zero value.
+	GridColumnText GridColumnKind = iota
+	// GridColumnButton mirrors DataGridViewButtonColumn: every cell is a
+	// button. Clicking one fires CellButtonClick with that cell's row and
+	// column; the cell's value is the caption unless ButtonText overrides it.
+	// This is the column for the per-row actions a grid usually needs - edit,
+	// assign, run.
+	GridColumnButton
+	// GridColumnCheckBox mirrors DataGridViewCheckBoxColumn: the cell value
+	// is "true" or "false" and is drawn as a tick the user can toggle.
+	// Toggling fires CellValueChanged like any other edit.
+	GridColumnCheckBox
+)
+
 // GridColumn mirrors DataGridViewColumn: one column's identity, header
 // caption and sizing policy.
 type GridColumn struct {
@@ -92,6 +112,21 @@ type GridColumn struct {
 	ReadOnly bool
 	// Align mirrors DefaultCellStyle.Alignment for this column's cells.
 	Align TextAlign
+	// Kind selects what the cells are: text, a button, a checkbox.
+	Kind GridColumnKind
+	// ButtonText is the caption on every button of a GridColumnButton column.
+	// Empty means each cell's own value is its caption, which is what makes a
+	// per-row label ("Approve" / "Revoke") possible.
+	ButtonText string
+	// Hidden mirrors DataGridViewColumn.Visible == false: the column keeps
+	// its data - CellByName and Cell still read it, AddRow still fills it -
+	// but it is not drawn and takes no width. This is how a row carries the
+	// id it was loaded by without showing it.
+	//
+	// It is spelled negatively so that the zero value of GridColumn is a
+	// visible column; a `Visible bool` would make every hand-built column
+	// disappear by default.
+	Hidden bool
 }
 
 // GridCellEventArgs mirrors DataGridViewCellEventArgs: which cell an event
@@ -123,6 +158,14 @@ type DataGridView struct {
 	columns []*GridColumn
 	rows    [][]string
 
+	// shown maps a drawn column position to its index in columns. Hidden
+	// columns are absent from it, which is the whole of how hiding works:
+	// the table is told there are fewer columns, and every index crossing
+	// that boundary is translated. Everything public - Cell, SelectCell,
+	// event args - speaks in *columns* indices, so hiding a column never
+	// renumbers the data.
+	shown []int
+
 	scrollBars ScrollBars
 	rowMode    SizeMode
 	rowHeight  float32
@@ -147,6 +190,10 @@ type DataGridView struct {
 	// RowsChanged has no direct WinForms twin; it fires after AddRow /
 	// RemoveRow / Clear so hosts can resync dependent UI.
 	RowsChanged Event[EventArgs]
+	// CellButtonClick mirrors DataGridView.CellContentClick for a button
+	// column: it fires when one of that column's buttons is pressed, with the
+	// row and column the button belongs to.
+	CellButtonClick Event[GridCellEventArgs]
 }
 
 // NewDataGridView mirrors `new DataGridView()` with the given columns. Pass
@@ -183,8 +230,10 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 		}
 	}
 
+	g.rebuildShown()
+
 	w := widget.NewTable(
-		func() (int, int) { return len(g.rows), len(g.columns) },
+		func() (int, int) { return len(g.rows), len(g.shown) },
 		func() fyne.CanvasObject { return newGridCell() },
 		func(id widget.TableCellID, obj fyne.CanvasObject) { g.updateCell(id, obj) },
 	)
@@ -196,30 +245,32 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 	}
 	w.UpdateHeader = func(id widget.TableCellID, obj fyne.CanvasObject) {
 		lbl := obj.(*widget.Label)
-		if id.Col >= 0 && id.Col < len(g.columns) {
-			lbl.SetText(g.columns[id.Col].Title)
-			lbl.Alignment = g.columns[id.Col].Align.toFyne()
+		col := g.modelCol(id.Col)
+		if c := g.Column(col); c != nil {
+			lbl.SetText(c.Title)
+			lbl.Alignment = c.Align.toFyne()
 		} else {
 			lbl.SetText("")
 		}
 	}
 	w.OnSelected = func(id widget.TableCellID) {
-		changed := g.selectedRow != id.Row || g.selectedCol != id.Col
-		g.selectedRow, g.selectedCol = id.Row, id.Col
+		col := g.modelCol(id.Col)
+		changed := g.selectedRow != id.Row || g.selectedCol != col
+		g.selectedRow, g.selectedCol = id.Row, col
 
 		// Mirror DataGridView's click-to-select, click-again-to-edit: the
 		// first tap only selects, a second tap on the already-selected cell
 		// opens the editor. Fyne's Table has no DoubleTapped of its own, so
 		// this is the closest faithful gesture available.
-		if !changed && g.cellEditable(id.Row, id.Col) {
-			g.editingRow, g.editingCol = id.Row, id.Col
+		if !changed && g.cellEditable(id.Row, col) {
+			g.editingRow, g.editingCol = id.Row, col
 		} else {
 			g.editingRow, g.editingCol = -1, -1
 		}
 
-		g.CellClick.Fire(g, GridCellEventArgs{Row: id.Row, Col: id.Col})
+		g.CellClick.Fire(g, GridCellEventArgs{Row: id.Row, Col: col})
 		if changed {
-			g.SelectionChanged.Fire(g, GridCellEventArgs{Row: id.Row, Col: id.Col})
+			g.SelectionChanged.Fire(g, GridCellEventArgs{Row: id.Row, Col: col})
 		}
 		g.w.Refresh()
 	}
@@ -236,11 +287,47 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 	return g
 }
 
+// --- hidden columns -----------------------------------------------------
+
+// rebuildShown recomputes the drawn-position -> column-index mapping. It must
+// run after anything that adds, removes or hides a column, and before the
+// table is asked how many columns it has.
+func (g *DataGridView) rebuildShown() {
+	g.shown = g.shown[:0]
+	for i, c := range g.columns {
+		if !c.Hidden {
+			g.shown = append(g.shown, i)
+		}
+	}
+}
+
+// modelCol translates a drawn position into a column index, or -1 when there
+// is nothing there. Every callback Fyne hands us speaks in drawn positions
+// and every value we hand back out speaks in column indices.
+func (g *DataGridView) modelCol(drawn int) int {
+	if drawn < 0 || drawn >= len(g.shown) {
+		return -1
+	}
+	return g.shown[drawn]
+}
+
+// drawnCol is modelCol backwards: where a column is drawn, or -1 if it is
+// hidden. Used by the calls that take a column index from the developer and
+// have to point Fyne at a cell.
+func (g *DataGridView) drawnCol(col int) int {
+	for drawn, model := range g.shown {
+		if model == col {
+			return drawn
+		}
+	}
+	return -1
+}
+
 // gridCell is one table cell: a display Label swapped for an Entry while the
-// cell is the one being edited. Fyne recycles a small pool of these across
-// every visible cell, so updateCell must set *every* field on each call -
-// nothing may be assumed to carry over from the previous cell that used
-// this same object.
+// cell is the one being edited, or for a Button or Check when the column says
+// so. Fyne recycles a small pool of these across every visible cell, so
+// updateCell must set *every* field on each call - nothing may be assumed to
+// carry over from the previous cell that used this same object.
 //
 // It must be a real fyne.Widget, not just a struct wrapping a *fyne.Container.
 // Fyne's render-tree walker descends only into `*fyne.Container` (by exact
@@ -250,9 +337,11 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 // blank while the header, which uses a plain widget.Label, renders fine.
 type gridCell struct {
 	widget.BaseWidget
-	label *widget.Label
-	entry *widget.Entry
-	stack *fyne.Container
+	label  *widget.Label
+	entry  *widget.Entry
+	button *widget.Button
+	check  *widget.Check
+	stack  *fyne.Container
 }
 
 // gridCell must satisfy fyne.Widget for its contents to be painted at all;
@@ -264,11 +353,28 @@ func newGridCell() *gridCell {
 	lbl.Truncation = fyne.TextTruncateEllipsis
 	ent := widget.NewEntry()
 	ent.Hide()
+	btn := widget.NewButton("", nil)
+	btn.Hide()
+	chk := widget.NewCheck("", nil)
+	chk.Hide()
 
-	c := &gridCell{label: lbl, entry: ent}
-	c.stack = container.NewStack(lbl, ent)
+	c := &gridCell{label: lbl, entry: ent, button: btn, check: chk}
+	c.stack = container.NewStack(lbl, ent, btn, chk)
 	c.ExtendBaseWidget(c)
 	return c
+}
+
+// showOnly hides every one of the cell's faces but the named one. A recycled
+// cell carries whatever the previous cell left showing, so this has to be
+// exhaustive rather than "hide what I last showed".
+func (c *gridCell) showOnly(keep fyne.CanvasObject) {
+	for _, o := range []fyne.CanvasObject{c.label, c.entry, c.button, c.check} {
+		if o == keep {
+			o.Show()
+		} else {
+			o.Hide()
+		}
+	}
 }
 
 func (c *gridCell) CreateRenderer() fyne.WidgetRenderer {
@@ -280,15 +386,68 @@ func (g *DataGridView) updateCell(id widget.TableCellID, obj fyne.CanvasObject) 
 	if !ok {
 		return
 	}
-	text := g.cellText(id.Row, id.Col)
+	row, col := id.Row, g.modelCol(id.Col)
+	text := g.cellText(row, col)
+	column := g.Column(col)
 
-	editing := id.Row == g.editingRow && id.Col == g.editingCol
-	if editing && g.cellEditable(id.Row, id.Col) {
-		row, col := id.Row, id.Col
-		// OnChanged must be rebound per cell: this gridCell object is
-		// recycled, so a closure left over from a previously rendered cell
-		// would write edits into the wrong row/column.
-		c.entry.OnChanged = nil
+	// Every face's callback is cleared first: these objects are recycled
+	// across cells, so a closure left from the cell rendered here a moment
+	// ago would write into the wrong row.
+	c.entry.OnChanged = nil
+	c.button.OnTapped = nil
+	c.check.OnChanged = nil
+
+	if column != nil {
+		switch column.Kind {
+		case GridColumnButton:
+			caption := column.ButtonText
+			if caption == "" {
+				caption = text
+			}
+			c.button.SetText(caption)
+			c.button.OnTapped = func() {
+				g.CellButtonClick.Fire(g, GridCellEventArgs{Row: row, Col: col})
+			}
+			// A button in a read-only grid is still a button: read-only is
+			// about editing values, and an action column has no value to edit.
+			c.button.Enable()
+			if !g.enabled {
+				c.button.Disable()
+			}
+			c.showOnly(c.button)
+			return
+		case GridColumnCheckBox:
+			c.check.SetChecked(text == "true")
+			if g.cellEditable(row, col) {
+				c.check.Enable()
+			} else {
+				c.check.Disable()
+			}
+			c.check.OnChanged = func(v bool) {
+				if g.suppressFire {
+					return
+				}
+				next := "false"
+				if v {
+					next = "true"
+				}
+				old := g.cellText(row, col)
+				if old == next {
+					return
+				}
+				g.setCellQuiet(row, col, next)
+				g.CellValueChanged.Fire(g, GridCellValueEventArgs{
+					GridCellEventArgs: GridCellEventArgs{Row: row, Col: col},
+					OldValue:          old,
+					NewValue:          next,
+				})
+			}
+			c.showOnly(c.check)
+			return
+		}
+	}
+
+	if row == g.editingRow && col == g.editingCol && g.cellEditable(row, col) {
 		c.entry.SetText(text)
 		c.entry.OnChanged = func(s string) {
 			if g.suppressFire {
@@ -305,24 +464,26 @@ func (g *DataGridView) updateCell(id widget.TableCellID, obj fyne.CanvasObject) 
 				NewValue:          s,
 			})
 		}
-		c.label.Hide()
-		c.entry.Show()
+		c.showOnly(c.entry)
 		return
 	}
 
-	c.entry.OnChanged = nil
-	c.entry.Hide()
-	c.label.Show()
 	c.label.SetText(text)
-	if id.Col >= 0 && id.Col < len(g.columns) {
-		c.label.Alignment = g.columns[id.Col].Align.toFyne()
+	if column != nil {
+		c.label.Alignment = column.Align.toFyne()
 	} else {
 		c.label.Alignment = fyne.TextAlignLeading
 	}
+	c.showOnly(c.label)
 }
 
 func (g *DataGridView) cellEditable(row, col int) bool {
 	if g.readOnly || row < 0 || col < 0 || col >= len(g.columns) {
+		return false
+	}
+	// A button column has no value to edit - its cells are actions - so it is
+	// never editable however the column is configured.
+	if g.columns[col].Kind == GridColumnButton {
 		return false
 	}
 	return !g.columns[col].ReadOnly
@@ -442,9 +603,14 @@ func (g *DataGridView) SelectedRow() int { return g.selectedRow }
 // SelectedColumn mirrors CurrentCell.ColumnIndex (-1 when nothing is selected).
 func (g *DataGridView) SelectedColumn() int { return g.selectedCol }
 
-// SelectCell mirrors setting CurrentCell.
+// SelectCell mirrors setting CurrentCell. A hidden column cannot be selected,
+// because there is nothing on screen to put the selection on.
 func (g *DataGridView) SelectCell(row, col int) {
-	g.w.Select(widget.TableCellID{Row: row, Col: col})
+	drawn := g.drawnCol(col)
+	if drawn < 0 {
+		return
+	}
+	g.w.Select(widget.TableCellID{Row: row, Col: drawn})
 }
 
 // ClearSelection mirrors DataGridView.ClearSelection().
@@ -456,9 +622,13 @@ func (g *DataGridView) BeginEdit(row, col int) {
 	if !g.cellEditable(row, col) {
 		return
 	}
+	drawn := g.drawnCol(col)
+	if drawn < 0 {
+		return // a hidden column has no editor to open
+	}
 	g.selectedRow, g.selectedCol = row, col
 	g.editingRow, g.editingCol = row, col
-	g.w.Select(widget.TableCellID{Row: row, Col: col})
+	g.w.Select(widget.TableCellID{Row: row, Col: drawn})
 	g.w.Refresh()
 }
 
@@ -511,6 +681,86 @@ func (g *DataGridView) AddColumn(col *GridColumn) {
 	}
 	g.columns = append(g.columns, col)
 	g.refreshAll()
+}
+
+// SetColumnKind mirrors replacing a column with a DataGridViewButtonColumn or
+// DataGridViewCheckBoxColumn: it changes what the cells are, not what they
+// hold. See GridColumnKind.
+func (g *DataGridView) SetColumnKind(col int, kind GridColumnKind) {
+	c := g.Column(col)
+	if c == nil {
+		return
+	}
+	c.Kind = kind
+	// An editor left open on a cell that has just become a button would be
+	// drawn over the button until the next click somewhere else.
+	if kind != GridColumnText && g.editingCol == col {
+		g.editingRow, g.editingCol = -1, -1
+	}
+	g.relayout()
+}
+
+// ColumnKind reports what a column's cells are.
+func (g *DataGridView) ColumnKind(col int) GridColumnKind {
+	if c := g.Column(col); c != nil {
+		return c.Kind
+	}
+	return GridColumnText
+}
+
+// SetColumnButtonText fixes the caption on every button of a button column.
+// Passing "" goes back to each cell's own value being its caption.
+func (g *DataGridView) SetColumnButtonText(col int, text string) {
+	if c := g.Column(col); c != nil {
+		c.ButtonText = text
+		g.relayout()
+	}
+}
+
+// SetColumnHidden mirrors DataGridViewColumn.Visible = !hidden. The column's
+// data stays exactly where it is - Cell, CellByName and AddRow are unaffected
+// - so an id column can be carried by every row without being shown.
+func (g *DataGridView) SetColumnHidden(col int, hidden bool) {
+	c := g.Column(col)
+	if c == nil || c.Hidden == hidden {
+		return
+	}
+	c.Hidden = hidden
+	// Selection and editing point at a column that may have just gone away.
+	if hidden && g.selectedCol == col {
+		g.ClearSelection()
+	}
+	if hidden && g.editingCol == col {
+		g.editingRow, g.editingCol = -1, -1
+	}
+	g.relayout()
+}
+
+// ColumnHidden reports whether a column is currently not drawn.
+func (g *DataGridView) ColumnHidden(col int) bool {
+	if c := g.Column(col); c != nil {
+		return c.Hidden
+	}
+	return false
+}
+
+// VisibleColumns lists the indices of the columns that are drawn, in the
+// order they appear. Useful when mapping a click's position back to data.
+func (g *DataGridView) VisibleColumns() []int {
+	out := make([]int, len(g.shown))
+	copy(out, g.shown)
+	return out
+}
+
+// ColumnByName finds a column by its Name, or -1. It is what makes a hidden
+// id column usable: look the column up once, then read it per row with Cell.
+func (g *DataGridView) ColumnByName(name string) int {
+	for i, c := range g.columns {
+		if c.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // SetColumnWidth pins a column to an explicit width, switching it to
@@ -649,19 +899,27 @@ func (g *DataGridView) relayout() {
 	if g.w == nil || len(g.columns) == 0 {
 		return
 	}
+	g.rebuildShown()
 	g.layoutColumns()
 	g.layoutRows()
 	g.w.Refresh()
 }
 
+// layoutColumns applies the computed widths. computeWidths speaks in drawn
+// positions, which is also what SetColumnWidth takes, so hidden columns
+// simply never appear on either side.
 func (g *DataGridView) layoutColumns() {
-	for i, w := range g.computeWidths() {
-		g.w.SetColumnWidth(i, w)
+	for drawn, w := range g.computeWidths() {
+		g.w.SetColumnWidth(drawn, w)
 	}
 }
 
 // computeWidths is the whole column-fitting policy, kept free of any Fyne
 // widget state so it can be reasoned about (and tested) on its own.
+//
+// It works in drawn positions: hidden columns are not in the result and take
+// no part in the fitting, which is what makes hiding one actually give its
+// width back to the others rather than leaving a gap.
 func (g *DataGridView) computeWidths() []float32 {
 	avail := g.bounds.Width
 	if g.scrollBars.vertical() {
@@ -670,15 +928,17 @@ func (g *DataGridView) computeWidths() []float32 {
 		avail -= theme.ScrollBarSize()
 	}
 
-	widths := make([]float32, len(g.columns))
+	drawn := g.drawnColumns()
+	widths := make([]float32, len(drawn))
 	var fixedTotal, fillWeight float32
-	for i, c := range g.columns {
+	for i, c := range drawn {
 		switch c.SizeMode {
 		case SizeToContent:
 			w := measureHeaderWidth(c.Title)
+			model := g.shown[i]
 			for _, row := range g.rows {
-				if i < len(row) {
-					if cw := measureCellWidth(row[i]); cw > w {
+				if model < len(row) {
+					if cw := measureCellWidth(row[model]); cw > w {
 						w = cw
 					}
 				}
@@ -697,14 +957,14 @@ func (g *DataGridView) computeWidths() []float32 {
 	// Fill columns divide whatever the other columns left behind.
 	if fillWeight > 0 {
 		var fillFloor float32
-		for i, c := range g.columns {
+		for i, c := range drawn {
 			if c.SizeMode == SizeFill {
 				fillFloor += widths[i]
 			}
 		}
 		slack := avail - fixedTotal - fillFloor
 		if slack > 0 {
-			for i, c := range g.columns {
+			for i, c := range drawn {
 				if c.SizeMode == SizeFill {
 					widths[i] = clampWidth(c, widths[i]+slack*(c.FillWeight/fillWeight))
 				}
@@ -725,7 +985,7 @@ func (g *DataGridView) computeWidths() []float32 {
 		if total > avail && avail > 0 {
 			overflow := total - avail
 			var shrinkable float32
-			for i, c := range g.columns {
+			for i, c := range drawn {
 				shrinkable += widths[i] - minWidthOf(c)
 			}
 			if shrinkable > 0 {
@@ -733,7 +993,7 @@ func (g *DataGridView) computeWidths() []float32 {
 				if ratio > 1 {
 					ratio = 1
 				}
-				for i, c := range g.columns {
+				for i, c := range drawn {
 					floor := minWidthOf(c)
 					widths[i] -= (widths[i] - floor) * ratio
 				}
@@ -742,6 +1002,15 @@ func (g *DataGridView) computeWidths() []float32 {
 	}
 
 	return widths
+}
+
+// drawnColumns lists the columns that are on screen, in drawn order.
+func (g *DataGridView) drawnColumns() []*GridColumn {
+	out := make([]*GridColumn, 0, len(g.shown))
+	for _, i := range g.shown {
+		out = append(out, g.columns[i])
+	}
+	return out
 }
 
 func minWidthOf(c *GridColumn) float32 {

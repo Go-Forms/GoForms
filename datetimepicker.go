@@ -37,13 +37,22 @@ func NewDateTimePicker(initial time.Time) *DateTimePicker {
 	return d
 }
 
-// togglePopup opens the calendar popup below the button, or closes it if
-// already open.
+// togglePopup opens the calendar popup below the button, or closes it if it
+// is currently on screen.
+//
+// "Is the calendar open?" is asked of the popup rather than of the field
+// holding it, because Fyne dismisses a PopUp itself when the user taps
+// outside it - it hides the widget and never tells the control. Treating a
+// non-nil field as "open" made the click after such a dismissal close
+// something that was already gone, so the calendar only came back on the
+// second click.
 func (d *DateTimePicker) togglePopup() {
-	if d.popup != nil {
+	if d.popupOpen() {
 		d.closePopup()
 		return
 	}
+	// Drop a popup Fyne has already hidden before building the next one.
+	d.closePopup()
 
 	canvas := fyne.CurrentApp().Driver().CanvasForObject(d.btn)
 	if canvas == nil {
@@ -63,6 +72,12 @@ func (d *DateTimePicker) togglePopup() {
 	popup.ShowAtPosition(pos)
 }
 
+// popupOpen reports whether the calendar is actually on screen, which is not
+// the same as this control still holding a reference to it (see togglePopup).
+func (d *DateTimePicker) popupOpen() bool {
+	return d.popup != nil && d.popup.Visible()
+}
+
 func (d *DateTimePicker) closePopup() {
 	if d.popup == nil {
 		return
@@ -70,6 +85,10 @@ func (d *DateTimePicker) closePopup() {
 	d.popup.Hide()
 	d.popup = nil
 }
+
+// DroppedDown mirrors DateTimePicker's "is the calendar showing" state. It is
+// exported mostly so a test can ask without reaching into the struct.
+func (d *DateTimePicker) DroppedDown() bool { return d.popupOpen() }
 
 // setValue updates the stored value, the button label, and fires
 // ValueChanged if the date actually changed.
