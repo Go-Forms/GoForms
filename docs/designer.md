@@ -38,7 +38,9 @@ The extension builds its Go helper on first use, so `go` has to be on `PATH`.
 | Command | What it does |
 |---|---|
 | `GoForms: Create New Project...` | scaffolds `main.go`, `go.mod`, a first form, build tasks and a `.gitignore` |
-| `GoForms: New Form...` | adds a `Forms/<Name>/` pair |
+| `GoForms: New Form...` | adds a `Forms/<Name>/` pair: an empty form, a dialog, an About box, a login form or a splash screen |
+| `GoForms: Set as Startup Form` | points `goforms.Run` in `main.go` at the form, swapping the imports |
+| `GoForms: Check for Updates...` | asks Go whether GoForms or Go has a newer release, and updates what you tick |
 | `GoForms: Open Visual Designer` | opens the canvas for the current file |
 | `GoForms: Open as Text` | back to the Go source |
 | `GoForms: Tidy Designer File` | runs the cleanup pass on a file edited elsewhere |
@@ -72,7 +74,7 @@ like rather than only what it sets.
 
 ## The window
 
-The canvas is on the left, and one panel on the right with two tabs, as in
+The canvas is on the left, and one panel on the right with three tabs, as in
 Visual Studio:
 
 - **Controls** - the toolbox, grouped into Common Controls, Containers,
@@ -80,18 +82,31 @@ Visual Studio:
   form, or into the selected container.
 
   ![The toolbox](images/designer-toolbox.png)
-- **Properties** - everything about the selected control. Clicking a control on
-  the canvas switches to this tab automatically.
+  A type of your own project that embeds a GoForms control and has a `NewX()`
+  or `NewX(w, h float32)` constructor is listed first, under Project Controls.
+- **Properties** - everything about the selected control: its own properties,
+  then the ones every control has (Anchor, Dock, Padding, Visible, Enabled,
+  ForeColor, BackColor, Font), with visual editors for Anchor, Dock, colours and
+  fonts. A property the file sets is bold, with ↺ to reset it; the box below
+  says what the property under the mouse does. Clicking a control on the canvas
+  switches to this tab automatically.
+- **Outline** - the form as a tree, front-most first; drag a control onto a
+  container to move it in, or above or below another to change the z-order.
 
 ## Editing
 
 | Action | How |
 |---|---|
-| Select | click; Ctrl or Shift click to extend |
-| Move | drag; snaps to siblings' edges and centres |
-| Resize | drag the corner handle |
+| Select | click; Ctrl or Shift click to extend; drag a rectangle on the form, or inside a selected container; `Ctrl+A` for the container's controls |
+| Move | drag (a selected container by its ✥); snaps to siblings' edges and centres and the container's sides; Alt drags freely; arrow keys nudge, Ctrl by eight |
+| Resize | drag the corner handle, or Shift+arrows |
+| Copy, cut, paste, duplicate | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+D` - with everything inside, into another form too |
+| Z-order | Bring to Front / Send to Back in the right-click menu |
+| Wire the default event | double-click the control (the form: Load) |
+| Smart tag | the ◂ on a selected control: Dock in Parent Container, Add Tab, Edit Columns... |
 | Delete | `Del`, or the button at the bottom of Properties |
-| Undo / redo | `Ctrl+Z` / `Ctrl+Y` |
+| Undo / redo | `Ctrl+Z` / `Ctrl+Y` - a step covers both files of the form |
+| Up a level | `Esc`: the container, then the form |
 | Reparent | drag onto a container, or use the **Parent** picker |
 | Rename | the **Name** box - renames the field, every reference, and the handler |
 | Resize the form | drag the handle at its bottom-right corner |
@@ -143,9 +158,12 @@ approximated:
 - **Real item lists.** Tabs, tree nodes, toolbar buttons and status panels are
   drawn from the file, not as placeholders.
 
-Two things are still approximate, and the canvas will differ from the running
-form inside them: **FlowLayoutPanel** and **TableLayoutPanel** place children by
-their own schemes, and the canvas draws those children at their stored bounds.
+- **FlowLayoutPanel and TableLayoutPanel.** A flow's children are drawn where
+  the flow puts them, and a table's in their cells - ports of the two panels'
+  `arrangeCustom`, checked against `TestGoldenPanelLayout`. A drop into a flow
+  goes at the place marked in its order; a drop into a table goes to the cell
+  under the mouse, the boundaries between its columns and rows drag to resize
+  them, and the **Columns and rows** group edits their size types.
 
 ## Reading and writing your file
 
@@ -163,6 +181,11 @@ func (mf *MainForm) initializeComponent() {
 	mf.AddControl(mf.btn)              // parenting
 }
 ```
+
+A table's children are parented with `AddControlAt` / `AddControlSpanning` when
+they have a cell of their own, and its tracks are `SetColumnStyle` /
+`SetRowStyle` calls. A control of the project's own is written with its
+package's import, which goes again when the last one is removed.
 
 A control type it does not know is still shown - as a read-only placeholder -
 so the file is never silently corrupted. Timers, menus, and anything else in
