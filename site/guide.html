@@ -23,6 +23,7 @@
     <nav>
       <a href="index.html">Home</a>
       <a href="guide.html">Guide</a>
+      <a href="datagridview.html">DataGridView</a>
       <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Reference</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
@@ -59,10 +60,13 @@
   <a href="#panels">Layout panels</a>
   <a href="#controls">The control catalogue</a>
   <a href="#menus">Menus, toolbars, status bars</a>
+  <a href="#tips-binding">Tool tips, binding, pictures</a>
+  <a href="datagridview.html">DataGridView →</a>
   <a href="#timer">Timers and background work</a>
 
   <strong>The designer</strong>
   <a href="#designer-basics">Canvas and selection</a>
+  <a href="#designer-tools">Menus, smart tags, outline</a>
   <a href="#designer-props">Properties and events</a>
   <a href="#designer-commands">Commands and shortcuts</a>
   <a href="#designer-theme">The theme editor</a>
@@ -1197,6 +1201,53 @@ mf.grid.<span class="f">SetContextMenu</span>(menu)</pre>
 </section>
 
 <!-- ================================================================== -->
+<section id="tips-binding">
+<h2>Tool tips, data binding, pictures</h2>
+
+<p>
+  A <code translate="no">ToolTip</code> is an extender, as in WinForms: one
+  component gives every control a tip.
+</p>
+
+<figure class="code">
+<pre translate="no">mf.toolTip1 = <span class="f">goforms.NewToolTip</span>()
+mf.toolTip1.<span class="f">SetToolTip</span>(mf.btnNext, <span class="s">"Next customer"</span>)</pre>
+</figure>
+
+<p>
+  A <code translate="no">BindingSource</code> holds a slice of records and a
+  position; a grid, a list or a combo box shows the records, and
+  <code translate="no">Bind</code> ties a control's Text, Checked or Value to a
+  field of the current one. It has a page of its own: <a href="datagridview.html#binding">binding to records</a>.
+</p>
+
+<figure class="code">
+<pre translate="no">mf.bsCustomers.<span class="f">Bind</span>(mf.txtName, <span class="s">"Text"</span>, <span class="s">"Name"</span>)
+mf.lstCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers)
+mf.lstCustomers.<span class="f">SetDisplayMember</span>(<span class="s">"Name"</span>)</pre>
+</figure>
+
+<p>
+  A picture travels inside the binary, embedded as a WinForms form keeps its
+  images in a <code translate="no">.resx</code>. The designer writes it so when
+  you pick a file:
+</p>
+
+<figure class="code">
+<pre translate="no"><span class="c">//go:embed resources/logo.png</span>
+<span class="k">var</span> picLogoImage []<span class="t">byte</span>
+
+mf.picLogo.<span class="f">LoadBytes</span>(<span class="s">"logo.png"</span>, picLogoImage)
+mf.<span class="f">SetIcon</span>(<span class="f">goforms.NewResource</span>(<span class="s">"app.png"</span>, formIcon))</pre>
+</figure>
+
+<figure class="shot">
+  <img src="assets/app-menu.png" alt="The running Customers form with its File menu open: New customer, Delete customer, a separator, Export with a submenu arrow, and Quit." loading="lazy">
+  <figcaption>The menu at run time. Fyne adds Quit to the first menu itself.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
 <section id="timer">
 <h2>Timers and background work</h2>
 
@@ -1250,6 +1301,14 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><kbd>Ctrl</kbd> or <kbd>Shift</kbd> click</td><td>Extends the selection. Dragging any member then moves the whole group.</td></tr>
     <tr><td>Click the form's background or title bar, click beside the form, or press <kbd>Escape</kbd></td><td>Selects the form itself — its title and size appear in the properties panel.</td></tr>
     <tr><td>Drag from the toolbox</td><td>Adds a control. Drop it on a container to make it a child of that container.</td></tr>
+    <tr><td>Drag on the form's background, or inside a selected container</td><td>Draws a selection rectangle. A container selected this way moves by its ✥ glyph.</td></tr>
+    <tr><td>Double-click a control</td><td>Wires its default event - Click, TextChanged, CheckedChanged, a timer's Tick, the form's Load - and opens the handler, or opens the one already wired.</td></tr>
+    <tr><td>Right-click</td><td>The Visual Studio menu: View Code, Cut, Copy, Paste, Duplicate, Delete, Bring to Front, Send to Back, Lock Controls, Tab Order, Properties - and, on the form, Set as Startup Form; on a table, inserting and deleting its columns and rows where the mouse is.</td></tr>
+    <tr><td>Click ◂ on a selected control</td><td>Its smart tag: the common tasks for its type - Dock in Parent Container, Add Tab, Add and Edit Columns, Columns from a Type, Edit Items, a table's Add Column and Add Row.</td></tr>
+    <tr><td>Drag with <kbd>Alt</kbd> held</td><td>Moves or resizes without snapping. Without it, edges and centres snap to the neighbours and to the container's padded sides.</td></tr>
+    <tr><td>Click a grid's column header</td><td>Picks that column; the panel edits it. See <a href="datagridview.html#designer-column">the DataGridView guide</a>.</td></tr>
+    <tr><td>Drag a table's track boundary, or a split container's splitter</td><td>Resizes the column or row, or sets SplitterDistance.</td></tr>
+    <tr><td>Drag the side panel's left edge</td><td>Widens or narrows the panel; a double-click on the edge resets it.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1282,6 +1341,35 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
 </section>
 
 <!-- ================================================================== -->
+<section id="designer-tools">
+<h2>Menus, smart tags and the outline</h2>
+
+<div class="compare">
+<figure class="shot">
+  <img src="assets/designer-context.png" alt="The right-click menu open on a button on the canvas: View Code F7, Cut, Copy, Paste, Duplicate, Delete, Bring to Front, Send to Back, Lock Controls, Tab Order, Properties." loading="lazy">
+  <figcaption>The right-click menu, as Visual Studio's.</figcaption>
+</figure>
+<figure class="shot">
+  <img src="assets/designer-outline.png" alt="The Outline tab: the form as a tree - MainForm, its buttons and label, the grpDetails group box with its children, the grid - and a Components list with menuStrip1, bsCustomers and toolTip1." loading="lazy">
+  <figcaption>The Outline: front-most first, with the components below.</figcaption>
+</figure>
+</div>
+
+<ul>
+  <li><strong>Outline</strong> - the third tab - shows the form as a tree, with a split container's halves and a tab control's pages. Drag a control onto a container to move it in, or above and below another to change the z-order; right-click a row for the same menu as on the canvas.</li>
+  <li><strong>Components</strong> - a Timer, the dialogs, a ToolTip, a ContextMenu, a MenuStrip, a BindingSource - go to the tray under the canvas. Select one there to edit it.</li>
+  <li><strong>The form's MenuStrip</strong> is drawn as a menu bar above the canvas. Its items are a tree in the panel: a click handler per item, ⇥ and ⇤ to nest, separators, ✓ to disable one.</li>
+  <li><strong>Tables and flows</strong> lay their controls out on the canvas as they will run: a drop into a table goes to the cell under the mouse, and a control in a table has a <em>Cell</em> group; the arrow keys move a control along a flow.</li>
+  <li><strong>The project's own controls</strong> - a type of the module that embeds a GoForms control and has a <code translate="no">NewX()</code> constructor - are in the toolbox under <em>Project controls</em>.</li>
+</ul>
+
+<figure class="shot">
+  <img src="assets/designer-menu.png" alt="A MenuStrip selected: its File and View menus as a tree in the properties panel, with handlers mnuNew_Click, mnuDelete_Click, mnuExportCsv_Click and mnuRefresh_Click, a separator and a disabled JSON item; the menu bar drawn above the canvas." loading="lazy">
+  <figcaption>The menu of the <a href="datagridview.html#example">Customers form</a>: File with a separator and an Export submenu whose JSON item is disabled, and View.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
 <section id="designer-props">
 <h2>Properties and events</h2>
 
@@ -1298,9 +1386,21 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td>Collection</td><td>Tab titles, ToolStrip buttons, StatusStrip panels, tree nodes — with the right editor per type, including a click-handler box for ToolStrip buttons.</td></tr>
     <tr><td>Properties</td><td>Every setter the catalogue knows, with an editor chosen by type: a checkbox for booleans, a spinner for numbers, a dropdown for enums, a row of checkboxes for flag sets like <code translate="no">Anchor</code>.</td></tr>
     <tr><td>Align</td><td>Appears with more than one control selected: align left, right, top, bottom, centre horizontally or vertically, same width, same height. Everything aligns to the <em>last-clicked</em> control, as in WinForms.</td></tr>
+    <tr><td>Layout and appearance</td><td>The properties every control has: <em>anchor</em> as a bar to each side, <em>dock</em> as its six places, <em>visible</em>, <em>enabled</em>, <em>foreColor</em> and <em>backColor</em> with a palette and the hex value, <em>font</em> as family, size and style, <em>padding</em>, <em>contextMenu</em>.</td></tr>
+    <tr><td>References</td><td>A property naming another component - <em>contextMenu</em>, a grid's or a list's <em>dataSource</em> - is a list of the form's components of that type.</td></tr>
+    <tr><td>Pictures</td><td><strong>…</strong> beside a PictureBox's <em>image</em> or the form's <em>icon</em> picks a file, copies it into the form's <code translate="no">resources/</code> folder and embeds it with <code translate="no">go:embed</code>.</td></tr>
+    <tr><td>Tool Tips</td><td>With a ToolTip on the form, a "ToolTip on toolTip1" box on every control.</td></tr>
+    <tr><td>(DataBindings)</td><td>On a TextBox, CheckBox, NumericUpDown and the like: which BindingSource and which field the control shows.</td></tr>
+    <tr><td>Column</td><td>On a grid whose column was picked by its header: everything about that column.</td></tr>
   </tbody>
 </table>
 </div>
+
+<p>
+  A property the file sets is shown in <strong>bold</strong>, with ↺ beside
+  it to reset it, which deletes the line that sets it. The box under the panel
+  says what the property or event under the mouse does.
+</p>
 
 <h3>The events panel</h3>
 
@@ -1337,6 +1437,10 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   definition, wherever it lives.
 </p>
 
+<p>
+  <strong>✕</strong> beside it unwires the event: the <code translate="no">Handle</code> line goes, the method stays in your code.
+</p>
+
 <div class="note">
   <span class="note-title">Where the stub lands</span>
   <p>
@@ -1365,7 +1469,7 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   <thead><tr><th>Command</th><th>Does</th></tr></thead>
   <tbody>
     <tr><td><strong>GoForms: Create New Project…</strong></td><td>Scaffolds an app — <code translate="no">go.mod</code>, <code translate="no">main.go</code>, a <code translate="no">MainForm</code> — from an empty or an example template. Asks whether to use the published module or a local checkout (the published module is the default and needs nothing on disk), and how the project should look: the default, a light or dark scheme, or an empty theme.</td></tr>
-    <tr><td><strong>GoForms: New Form…</strong></td><td>Adds a <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> pair to any folder. Also on the Explorer's folder right-click menu.</td></tr>
+    <tr><td><strong>GoForms: New Form…</strong></td><td>Adds a <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> pair to any folder: an empty form, a dialog, an About box, a login form or a splash screen. Also on the Explorer's folder right-click menu.</td></tr>
     <tr><td><strong>GoForms: Open Visual Designer</strong></td><td>Opens the designer for the current file.</td></tr>
     <tr><td><strong>GoForms: Open as Text</strong></td><td>The inverse — the plain Go source.</td></tr>
     <tr><td><strong>GoForms: Tidy Designer File</strong></td><td>Runs the cleanup pass by hand. The designer does it after every edit of its own, so this is for files edited outside it.</td></tr>
@@ -1373,6 +1477,10 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><strong>GoForms: Open Theme as Text</strong></td><td>The inverse — the styles file as plain Go.</td></tr>
     <tr><td><strong>GoForms: Check Setup</strong></td><td>Which <code translate="no">go</code> was found and everywhere it looked, whether the helper CLI builds and answers, and where the framework checkout is. Start here when something does not work.</td></tr>
     <tr><td><strong>GoForms: Set Framework Path…</strong></td><td>Points at a local GoForms checkout, for projects that build against one.</td></tr>
+    <tr><td><strong>GoForms: View Code</strong> (<kbd>F7</kbd>) / <strong>View Designer</strong> (<kbd>Shift</kbd>+<kbd>F7</kbd>)</td><td>Jumps between a form's designer and its hand-written file, as in Visual Studio.</td></tr>
+    <tr><td><strong>GoForms: Set as Startup Form</strong></td><td>Points <code translate="no">goforms.Run</code> in <code translate="no">main.go</code> at this form, swapping the imports. Also on the form's right-click menu.</td></tr>
+    <tr><td><strong>GoForms: Check for Updates…</strong></td><td>Asks Go whether the framework your projects use, or Go itself, has a newer release, and updates what you tick.</td></tr>
+    <tr><td><strong>GoForms: Build… / Run… / Debug</strong></td><td>Builds or runs the project for the desktop, the browser (WebAssembly) or a connected Android phone.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1385,7 +1493,12 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo.</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo.</td></tr>
     <tr><td><kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click</td><td>Extends the selection.</td></tr>
-    <tr><td><kbd>Escape</kbd></td><td>Selects the form, leaving a control's properties.</td></tr>
+    <tr><td><kbd>Escape</kbd></td><td>Goes up a level: to the selection's container, then to the form.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>Copy, cut, paste - with everything inside the copied controls, into this form or another.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Duplicate.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>Selects every control of the container.</td></tr>
+    <tr><td>Arrow keys</td><td>Nudge the selection by a pixel; with <kbd>Ctrl</kbd>, by eight; with <kbd>Shift</kbd>, resize it. In a flow panel, move a control along the flow.</td></tr>
+    <tr><td><kbd>F7</kbd></td><td>View Code.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1409,6 +1522,7 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   <tbody>
     <tr><td><code translate="no">goforms.goPath</code></td><td>Full path to a <code translate="no">go</code> executable, for when the editor cannot find one. A GUI editor inherits the desktop session's <code translate="no">PATH</code>, not the one your shell builds, so a Go under <code translate="no">/usr/local/go/bin</code> or managed by asdf/mise is often invisible to it.</td></tr>
     <tr><td><code translate="no">goforms.frameworkPath</code></td><td>A local GoForms checkout, used when a new project opts to build against one.</td></tr>
+    <tr><td><code translate="no">goforms.checkForUpdates</code></td><td>Check for framework and Go updates once a day. Off by default; <strong>Check for Updates…</strong> works either way.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1747,6 +1861,7 @@ panel.<span class="f">SetBackColor</span>(<span class="f">goforms.RGB</span>(<sp
     <nav>
       <a href="index.html">Home</a>
       <a href="guide.html">Guide</a>
+      <a href="datagridview.html">DataGridView</a>
       <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Reference</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>

@@ -23,6 +23,7 @@
     <nav>
       <a href="index.html">Главная</a>
       <a href="guide.html">Руководство</a>
+      <a href="datagridview.html">DataGridView</a>
       <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
@@ -59,10 +60,13 @@
   <a href="#panels">Панели раскладки</a>
   <a href="#controls">Каталог контролов</a>
   <a href="#menus">Меню, панели, статусбар</a>
+  <a href="#tips-binding">Подсказки, привязка, картинки</a>
+  <a href="datagridview.html">DataGridView →</a>
   <a href="#timer">Таймеры и фоновая работа</a>
 
   <strong>Дизайнер</strong>
   <a href="#designer-basics">Холст и выделение</a>
+  <a href="#designer-tools">Меню, смарт-теги, структура</a>
   <a href="#designer-props">Свойства и события</a>
   <a href="#designer-commands">Команды и горячие клавиши</a>
   <a href="#designer-theme">Редактор тем</a>
@@ -1192,6 +1196,54 @@ mf.grid.<span class="f">SetContextMenu</span>(menu)</pre>
 </section>
 
 <!-- ================================================================== -->
+<section id="tips-binding">
+<h2>Подсказки, привязка данных, картинки</h2>
+
+<p>
+  <code translate="no">ToolTip</code> - расширитель, как в WinForms: один
+  компонент даёт подсказку любому контролу.
+</p>
+
+<figure class="code">
+<pre translate="no">mf.toolTip1 = <span class="f">goforms.NewToolTip</span>()
+mf.toolTip1.<span class="f">SetToolTip</span>(mf.btnNext, <span class="s">"Next customer"</span>)</pre>
+</figure>
+
+<p>
+  <code translate="no">BindingSource</code> держит срез записей и позицию;
+  сетка, список или комбобокс показывают записи, а
+  <code translate="no">Bind</code> связывает Text, Checked или Value контрола с
+  полем текущей записи. Подробно - на отдельной странице:
+  <a href="datagridview.html#binding">привязка к записям</a>.
+</p>
+
+<figure class="code">
+<pre translate="no">mf.bsCustomers.<span class="f">Bind</span>(mf.txtName, <span class="s">"Text"</span>, <span class="s">"Name"</span>)
+mf.lstCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers)
+mf.lstCustomers.<span class="f">SetDisplayMember</span>(<span class="s">"Name"</span>)</pre>
+</figure>
+
+<p>
+  Картинка едет внутри бинарника - встроенная, как форма WinForms хранит
+  картинки в <code translate="no">.resx</code>. Дизайнер так её и пишет, когда
+  вы выбираете файл:
+</p>
+
+<figure class="code">
+<pre translate="no"><span class="c">//go:embed resources/logo.png</span>
+<span class="k">var</span> picLogoImage []<span class="t">byte</span>
+
+mf.picLogo.<span class="f">LoadBytes</span>(<span class="s">"logo.png"</span>, picLogoImage)
+mf.<span class="f">SetIcon</span>(<span class="f">goforms.NewResource</span>(<span class="s">"app.png"</span>, formIcon))</pre>
+</figure>
+
+<figure class="shot">
+  <img src="../assets/app-menu.png" alt="Работающая форма Customers с открытым меню File: New customer, Delete customer, разделитель, Export со стрелкой подменю и Quit." loading="lazy">
+  <figcaption>Меню во время работы. Quit в первое меню Fyne добавляет сам.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
 <section id="timer">
 <h2>Таймеры и фоновая работа</h2>
 
@@ -1244,6 +1296,14 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td>Клик с <kbd>Ctrl</kbd> или <kbd>Shift</kbd></td><td>Расширяет выделение. Перетаскивание любого участника двигает всю группу.</td></tr>
     <tr><td>Клик по фону формы или её заголовку, клик рядом с формой или <kbd>Escape</kbd></td><td>Выделяет саму форму — её заголовок и размер появляются в панели свойств.</td></tr>
     <tr><td>Перетащить из панели инструментов</td><td>Добавляет контрол. Бросьте на контейнер, чтобы он стал его дочерним.</td></tr>
+    <tr><td>Протянуть по фону формы или внутри выделенного контейнера</td><td>Рисует рамку выделения. Выделенный так контейнер двигается за значок ✥.</td></tr>
+    <tr><td>Двойной клик по контролу</td><td>Привязывает событие по умолчанию - Click, TextChanged, CheckedChanged, Tick таймера, Load формы - и открывает обработчик, а если он уже привязан - открывает его.</td></tr>
+    <tr><td>Правый клик</td><td>Меню как в Visual Studio: View Code, Cut, Copy, Paste, Duplicate, Delete, Bring to Front, Send to Back, Lock Controls, Tab Order, Properties, а на форме - Set as Startup Form; на таблице - вставка и удаление её колонок и строк там, где мышь.</td></tr>
+    <tr><td>Клик по ◂ у выделенного контрола</td><td>Его смарт-тег: частые задачи для типа - Dock in Parent Container, Add Tab, Add и Edit Columns, Columns from a Type, Edit Items, у таблицы Add Column и Add Row.</td></tr>
+    <tr><td>Тянуть с зажатым <kbd>Alt</kbd></td><td>Двигает или меняет размер без привязки. Без него края и центры прилипают к соседям и к краям контейнера с учётом отступов.</td></tr>
+    <tr><td>Клик по заголовку колонки сетки</td><td>Выбирает эту колонку; панель правит её. См. <a href="datagridview.html#designer-column">руководство по DataGridView</a>.</td></tr>
+    <tr><td>Тянуть границу дорожки таблицы или разделитель SplitContainer</td><td>Меняет размер колонки или строки либо SplitterDistance.</td></tr>
+    <tr><td>Тянуть левый край боковой панели</td><td>Расширяет или сужает панель; двойной клик по краю возвращает ширину.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1275,6 +1335,35 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
 </section>
 
 <!-- ================================================================== -->
+<section id="designer-tools">
+<h2>Меню, смарт-теги и структура</h2>
+
+<div class="compare">
+<figure class="shot">
+  <img src="../assets/designer-context.png" alt="Меню по правому клику на кнопке на холсте: View Code F7, Cut, Copy, Paste, Duplicate, Delete, Bring to Front, Send to Back, Lock Controls, Tab Order, Properties." loading="lazy">
+  <figcaption>Меню по правому клику, как в Visual Studio.</figcaption>
+</figure>
+<figure class="shot">
+  <img src="../assets/designer-outline.png" alt="Вкладка Outline: форма деревом - MainForm, её кнопки и метка, группа grpDetails с дочерними контролами, сетка - и список Components с menuStrip1, bsCustomers и toolTip1." loading="lazy">
+  <figcaption>Outline: сначала самые верхние, компоненты ниже.</figcaption>
+</figure>
+</div>
+
+<ul>
+  <li><strong>Outline</strong> - третья вкладка - показывает форму деревом, с половинами SplitContainer и страницами TabControl. Перетащите контрол на контейнер, чтобы переложить его внутрь, или выше/ниже другого, чтобы сменить z-порядок; правый клик по строке даёт то же меню, что на холсте.</li>
+  <li><strong>Компоненты</strong> - Timer, диалоги, ToolTip, ContextMenu, MenuStrip, BindingSource - попадают в лоток под холстом. Выделите компонент там, чтобы править его.</li>
+  <li><strong>MenuStrip формы</strong> рисуется полосой меню над холстом. Его пункты - дерево в панели: обработчик клика на пункт, ⇥ и ⇤ для вложения, разделители, ✓ чтобы отключить пункт.</li>
+  <li><strong>Таблицы и потоки</strong> раскладывают контролы на холсте так, как будет при запуске: брошенный в таблицу контрол попадает в ячейку под мышью, а у контрола в таблице есть группа <em>Cell</em>; стрелки двигают контрол по потоку.</li>
+  <li><strong>Собственные контролы проекта</strong> - тип модуля, встраивающий контрол GoForms и имеющий конструктор <code translate="no">NewX()</code>, - есть в тулбоксе в разделе <em>Project controls</em>.</li>
+</ul>
+
+<figure class="shot">
+  <img src="../assets/designer-menu.png" alt="Выбран MenuStrip: его меню File и View деревом в панели свойств с обработчиками mnuNew_Click, mnuDelete_Click, mnuExportCsv_Click и mnuRefresh_Click, разделителем и отключённым пунктом JSON; над холстом нарисована полоса меню." loading="lazy">
+  <figcaption>Меню <a href="datagridview.html#example">формы Customers</a>: File с разделителем и подменю Export, где пункт JSON отключён, и View.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
 <section id="designer-props">
 <h2>Свойства и события</h2>
 
@@ -1291,9 +1380,21 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td>Collection</td><td>Заголовки вкладок, кнопки ToolStrip, панели StatusStrip, узлы дерева — со своим редактором на каждый тип, включая поле обработчика клика для кнопок ToolStrip.</td></tr>
     <tr><td>Properties</td><td>Каждый известный каталогу сеттер, с редактором по типу: чекбокс для булевых, счётчик для чисел, выпадающий список для перечислений, ряд чекбоксов для наборов флагов вроде <code translate="no">Anchor</code>.</td></tr>
     <tr><td>Align</td><td>Появляется при выделении больше одного контрола: выровнять по левому, правому, верхнему, нижнему краю, по центру по горизонтали или вертикали, одинаковая ширина, одинаковая высота. Всё выравнивается по <em>последнему кликнутому</em> контролу — как в WinForms.</td></tr>
+    <tr><td>Layout and appearance</td><td>Свойства любого контрола: <em>anchor</em> - планкой к каждой стороне, <em>dock</em> - шестью местами, <em>visible</em>, <em>enabled</em>, <em>foreColor</em> и <em>backColor</em> с палитрой и hex-значением, <em>font</em> - семейство, размер и стиль, <em>padding</em>, <em>contextMenu</em>.</td></tr>
+    <tr><td>Ссылки</td><td>Свойство, называющее другой компонент, - <em>contextMenu</em>, <em>dataSource</em> сетки или списка - это список компонентов формы нужного типа.</td></tr>
+    <tr><td>Картинки</td><td><strong>…</strong> рядом с <em>image</em> у PictureBox или <em>icon</em> у формы выбирает файл, копирует его в папку <code translate="no">resources/</code> формы и встраивает через <code translate="no">go:embed</code>.</td></tr>
+    <tr><td>Tool Tips</td><td>Если на форме есть ToolTip - поле «ToolTip on toolTip1» у каждого контрола.</td></tr>
+    <tr><td>(DataBindings)</td><td>У TextBox, CheckBox, NumericUpDown и подобных: какой BindingSource и какое поле показывает контрол.</td></tr>
+    <tr><td>Column</td><td>У сетки, чья колонка выбрана по заголовку: всё об этой колонке.</td></tr>
   </tbody>
 </table>
 </div>
+
+<p>
+  Свойство, заданное в файле, показано <strong>жирным</strong>, а ↺ рядом
+  сбрасывает его - удаляет строку, которая его задаёт. Поле под панелью
+  объясняет, что делает свойство или событие под мышью.
+</p>
 
 <h3>Панель событий</h3>
 
@@ -1329,6 +1430,10 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   определению, где бы оно ни было.
 </p>
 
+<p>
+  <strong>✕</strong> рядом с ним отвязывает событие: строка <code translate="no">Handle</code> уходит, метод остаётся в вашем коде.
+</p>
+
 <div class="note">
   <span class="note-title">Куда попадёт заглушка</span>
   <p>
@@ -1356,7 +1461,7 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
   <tbody>
     <tr><td><strong>GoForms: Create New Project…</strong></td><td>Создаёт приложение — <code translate="no">go.mod</code>, <code translate="no">main.go</code>, <code translate="no">MainForm</code> — из пустого шаблона или из примера. Спрашивает, брать ли опубликованный модуль или локальный чекаут (по умолчанию опубликованный, ему ничего не нужно на диске) и как проект должен выглядеть: стандартный вид, светлая или тёмная схема, либо пустая тема.</td></tr>
-    <tr><td><strong>GoForms: New Form…</strong></td><td>Добавляет пару <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> в любую папку. Есть и в контекстном меню папки в проводнике.</td></tr>
+    <tr><td><strong>GoForms: New Form…</strong></td><td>Добавляет пару <code translate="no">&lt;Name&gt;.go</code> + <code translate="no">&lt;Name&gt;-designer.go</code> в любую папку: пустую форму, диалог, «О программе», форму входа или заставку. Есть и в контекстном меню папки в проводнике.</td></tr>
     <tr><td><strong>GoForms: Open Visual Designer</strong></td><td>Открывает дизайнер для текущего файла.</td></tr>
     <tr><td><strong>GoForms: Open as Text</strong></td><td>Обратное действие — обычный исходник на Go.</td></tr>
     <tr><td><strong>GoForms: Tidy Designer File</strong></td><td>Запускает проход очистки вручную. Дизайнер делает это после каждой своей правки, так что команда нужна для файлов, изменённых вне него.</td></tr>
@@ -1364,6 +1469,10 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><strong>GoForms: Open Theme as Text</strong></td><td>Обратное действие — файл стилей как обычный Go.</td></tr>
     <tr><td><strong>GoForms: Check Setup</strong></td><td>Какой <code translate="no">go</code> найден и где искали, собирается ли и отвечает ли вспомогательный CLI, где лежит чекаут фреймворка. Начинайте отсюда, когда что-то не работает.</td></tr>
     <tr><td><strong>GoForms: Set Framework Path…</strong></td><td>Указывает на локальный чекаут GoForms — для проектов, которые собираются против него.</td></tr>
+    <tr><td><strong>GoForms: View Code</strong> (<kbd>F7</kbd>) / <strong>View Designer</strong> (<kbd>Shift</kbd>+<kbd>F7</kbd>)</td><td>Переход между дизайнером формы и её рукописным файлом, как в Visual Studio.</td></tr>
+    <tr><td><strong>GoForms: Set as Startup Form</strong></td><td>Направляет <code translate="no">goforms.Run</code> в <code translate="no">main.go</code> на эту форму, меняя импорты. Есть и в меню правого клика по форме.</td></tr>
+    <tr><td><strong>GoForms: Check for Updates…</strong></td><td>Спрашивает Go, нет ли новой версии фреймворка, который используют ваши проекты, или самого Go, и обновляет отмеченное.</td></tr>
+    <tr><td><strong>GoForms: Build… / Run… / Debug</strong></td><td>Собирает или запускает проект под десктоп, браузер (WebAssembly) или подключённый Android-телефон.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1376,7 +1485,12 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
     <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Отменить.</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Повторить.</td></tr>
     <tr><td>Клик с <kbd>Ctrl</kbd> / <kbd>Shift</kbd></td><td>Расширяет выделение.</td></tr>
-    <tr><td><kbd>Escape</kbd></td><td>Выделяет форму, уводя из свойств контрола.</td></tr>
+    <tr><td><kbd>Escape</kbd></td><td>Поднимается на уровень выше: к контейнеру выделенного, затем к форме.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>Копировать, вырезать, вставить - со всем, что внутри скопированных контролов, в эту форму или другую.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Дублировать.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>Выделяет все контролы контейнера.</td></tr>
+    <tr><td>Стрелки</td><td>Сдвигают выделение на пиксель; с <kbd>Ctrl</kbd> - на восемь; с <kbd>Shift</kbd> - меняют размер. В потоковой панели двигают контрол по потоку.</td></tr>
+    <tr><td><kbd>F7</kbd></td><td>View Code.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1400,6 +1514,7 @@ mf.Closed.<span class="f">Handle</span>(<span class="k">func</span>(sender <span
   <tbody>
     <tr><td><code translate="no">goforms.goPath</code></td><td>Полный путь к исполняемому <code translate="no">go</code> — на случай, когда редактор не может его найти. GUI-редактор наследует <code translate="no">PATH</code> сессии рабочего стола, а не тот, который строит ваш шелл, поэтому Go в <code translate="no">/usr/local/go/bin</code> или под управлением asdf/mise ему часто не виден.</td></tr>
     <tr><td><code translate="no">goforms.frameworkPath</code></td><td>Локальный чекаут GoForms — используется, когда новый проект решает собираться против него.</td></tr>
+    <tr><td><code translate="no">goforms.checkForUpdates</code></td><td>Раз в день проверять обновления фреймворка и Go. По умолчанию выключено; <strong>Check for Updates…</strong> работает в любом случае.</td></tr>
   </tbody>
 </table>
 </div>
@@ -1738,6 +1853,7 @@ panel.<span class="f">SetBackColor</span>(<span class="f">goforms.RGB</span>(<sp
     <nav>
       <a href="index.html">Главная</a>
       <a href="guide.html">Руководство</a>
+      <a href="datagridview.html">DataGridView</a>
       <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
       <a href="https://github.com/Go-Forms">GitHub</a>
     </nav>
