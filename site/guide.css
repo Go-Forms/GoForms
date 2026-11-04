@@ -179,3 +179,11 @@ kbd {
   .doc-nav strong { break-after: avoid; }
   .doc-nav a { break-inside: avoid; }
 }
+
+/* ---- Screenshots ----------------------------------------------------- */
+
+.doc-body figure.shot { margin: 1.4rem 0 1.6rem; }
+.doc-body figure.shot img { display: block; max-width: 100%; height: auto; }
+/* Two narrow panel shots, or a shot beside its explanation. */
+.compare figure.shot { margin: 0; }
+.compare > div > :first-child { margin-top: 0; }

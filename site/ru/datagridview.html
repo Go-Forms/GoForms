@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataGridView в GoForms — колонки, редактирование, привязка и дизайнер</title>
+<meta name="description" content="Всё о DataGridView в GoForms: колонки и их типы, размеры, редактирование мышью и клавиатурой, привязка к BindingSource, добавление и удаление записей и проектирование сетки по колонкам в дизайнере VS Code.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://go-forms.github.io/GoForms/datagridview.html">
+<link rel="alternate" hreflang="ru" href="https://go-forms.github.io/GoForms/ru/datagridview.html">
+<link rel="alternate" hreflang="x-default" href="https://go-forms.github.io/GoForms/datagridview.html">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../guide.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img src="../assets/logo.svg" alt="">
+      <span>GoForms</span>
+    </a>
+    <nav>
+      <a href="index.html">Главная</a>
+      <a href="guide.html">Руководство</a>
+      <a href="datagridview.html" aria-current="page">DataGridView</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
+      <a href="https://github.com/Go-Forms">GitHub</a>
+    </nav>
+    <div class="lang-switch">
+      <a href="../datagridview.html" hreflang="en">EN</a>
+      <a href="datagridview.html" aria-current="true" hreflang="ru">RU</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap doc-shell">
+
+<aside class="doc-nav">
+<strong>Сетка</strong>
+  <a href="#overview">Коротко</a>
+  <a href="#first">Первая сетка</a>
+  <a href="#columns">Колонки</a>
+  <a href="#rows">Строки и ячейки</a>
+  <a href="#kinds">Флажки и кнопки</a>
+  <a href="#sizing">Ширины, высоты, прокрутка</a>
+
+  <strong>Работа с ней</strong>
+  <a href="#editing">Редактирование</a>
+  <a href="#keys">Мышь и клавиатура</a>
+  <a href="#selection">Выделение</a>
+  <a href="#events">События</a>
+
+  <strong>Данные</strong>
+  <a href="#binding">Привязка к записям</a>
+  <a href="#details">Панель подробностей</a>
+  <a href="#add-delete">Добавление и удаление</a>
+
+  <strong>Дизайнер</strong>
+  <a href="#designer-add">Сетка на форме</a>
+  <a href="#designer-columns">Список колонок</a>
+  <a href="#designer-column">Колонка целиком</a>
+  <a href="#designer-type">Колонки из типа</a>
+  <a href="#designer-binding">Привязка в дизайнере</a>
+
+  <strong>Справка</strong>
+  <a href="#example">Пример целиком</a>
+  <a href="#traps">Подводные камни</a>
+</aside>
+
+<main class="doc-body">
+
+<h1>DataGridView</h1>
+<p class="lead">
+  Электронная таблица оконного приложения: колонки с заголовками, строки
+  ячеек, правка на месте, а при привязке к <code translate="no">BindingSource</code> -
+  живое представление среза структур, в который пользователь может добавлять
+  записи и из которого может их удалять. Сетка GoForms повторяет
+  <code translate="no">System.Windows.Forms.DataGridView</code>, а дизайнер
+  собирает её колонка за колонкой.
+</p>
+
+<!-- ================================================================== -->
+<section id="overview">
+<h2>Коротко</h2>
+
+<figure class="shot">
+  <img src="../assets/app-dgv-bound.png" alt="Работающая форма GoForms: слева сетка клиентов с колонками ID, Name, City, Credit и Active, справа группа Details, где выбранный клиент привязан к текстовым полям, числовому полю и флажку." loading="lazy">
+  <figcaption>Сетка, привязанная к срезу клиентов. Выбор строки двигает источник привязки, и подробности справа идут за ним. Credit выровнен вправо, Active - колонка флажков, ID узкая и только для чтения, а строка со звёздочкой - место, где вводится новый клиент.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Колонки</strong> бывают текстовыми, флажками и кнопками; у каждой своя ширина или режим размера, выравнивание, «только чтение» и видимость.</li>
+  <li><strong>Ячейки</strong> - строки. При привязке каждая колонка показывает одно поле записи с преобразованием в его тип и обратно.</li>
+  <li><strong>Редактирование</strong> - жест DataGridView: клик выделяет, второй клик (или просто ввод) открывает правку.</li>
+  <li><strong>Добавление и удаление</strong>: строка новой записи внизу и <kbd>Delete</kbd> для выбранной строки - с событиями, которые могут сказать «нет».</li>
+  <li><strong>Дизайнер</strong> правит всё это: кликните по заголовку колонки на холсте - и панель покажет эту колонку.</li>
+</ul>
+</section>
+
+<!-- ================================================================== -->
+<section id="first">
+<h2>Первая сетка</h2>
+
+<p>
+  <code translate="no">NewDataGridView</code> принимает заголовки колонок.
+  Строки добавляются строками, по одной на колонку:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no">mf.gridOrders = <span class="f">goforms.NewDataGridView</span>(<span class="s">"Order"</span>, <span class="s">"Customer"</span>, <span class="s">"Total"</span>)
+mf.gridOrders.<span class="f">SetBounds</span>(<span class="n">12</span>, <span class="n">12</span>, <span class="n">480</span>, <span class="n">260</span>)
+mf.<span class="f">AddControl</span>(mf.gridOrders)
+
+<span class="c">// Строки — это строки, по одной на колонку.</span>
+mf.gridOrders.<span class="f">AddRow</span>(<span class="s">"1001"</span>, <span class="s">"Acme Corp"</span>, <span class="s">"1240.00"</span>)
+mf.gridOrders.<span class="f">AddRow</span>(<span class="s">"1002"</span>, <span class="s">"Globex"</span>, <span class="s">"87.50"</span>)</pre>
+</figure>
+
+<p>
+  По умолчанию сетка прокручивается по обеим осям, у неё есть строка
+  заголовков и линии сетки, и каждая ячейка редактируема. Всё, что ниже,
+  меняет что-то из этого.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="columns">
+<h2>Колонки</h2>
+
+<p>
+  Колонка - это <code translate="no">*goforms.GridColumn</code>. Если строить
+  сетку в коде, все настройки колонки можно задать сразу:
+</p>
+
+<figure class="code">
+<pre translate="no">grid := <span class="f">goforms.NewDataGridViewColumns</span>([]*goforms.GridColumn{
+	{Name: <span class="s">"id"</span>, Title: <span class="s">"ID"</span>, Hidden: <span class="k">true</span>}, <span class="c">// хранится, но не рисуется</span>
+	{Name: <span class="s">"customer"</span>, Title: <span class="s">"Customer"</span>, SizeMode: goforms.SizeFill, MinWidth: <span class="n">120</span>},
+	{Name: <span class="s">"total"</span>, Title: <span class="s">"Total"</span>, Width: <span class="n">90</span>, Align: goforms.AlignRight, ReadOnly: <span class="k">true</span>},
+	{Name: <span class="s">"paid"</span>, Title: <span class="s">"Paid"</span>, Kind: goforms.GridColumnCheckBox},
+	{Name: <span class="s">"open"</span>, Title: <span class="s">""</span>, Kind: goforms.GridColumnButton, ButtonText: <span class="s">"Open..."</span>},
+})</pre>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Поле</th><th>WinForms</th><th>Значение</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">Name</code></td><td><code translate="no">Name</code></td><td>Ключ, по которому ищут <code translate="no">CellByName</code> и <code translate="no">ColumnByName</code>. На экране не виден.</td></tr>
+    <tr><td><code translate="no">Title</code></td><td><code translate="no">HeaderText</code></td><td>Подпись в строке заголовков.</td></tr>
+    <tr><td><code translate="no">Width</code></td><td><code translate="no">Width</code></td><td>Пиксели, в режиме <code translate="no">SizeFixed</code>.</td></tr>
+    <tr><td><code translate="no">SizeMode</code></td><td><code translate="no">AutoSizeMode</code></td><td><code translate="no">SizeFixed</code>, <code translate="no">SizeToContent</code> (по самой широкой ячейке) или <code translate="no">SizeFill</code> (доля оставшегося места).</td></tr>
+    <tr><td><code translate="no">MinWidth</code>, <code translate="no">MaxWidth</code></td><td><code translate="no">MinimumWidth</code></td><td>Ограничивают подогнанную и заполняющую ширину.</td></tr>
+    <tr><td><code translate="no">FillWeight</code></td><td><code translate="no">FillWeight</code></td><td>Доля заполняющей колонки среди заполняющих.</td></tr>
+    <tr><td><code translate="no">Align</code></td><td><code translate="no">DefaultCellStyle.Alignment</code></td><td><code translate="no">AlignLeft</code>, <code translate="no">AlignCenter</code>, <code translate="no">AlignRight</code> - ячейки и заголовок.</td></tr>
+    <tr><td><code translate="no">ReadOnly</code></td><td><code translate="no">ReadOnly</code></td><td>Ячейки колонки никогда не открывают редактор.</td></tr>
+    <tr><td><code translate="no">Kind</code></td><td>класс колонки</td><td><code translate="no">GridColumnText</code>, <code translate="no">GridColumnCheckBox</code> или <code translate="no">GridColumnButton</code>.</td></tr>
+    <tr><td><code translate="no">ButtonText</code></td><td><code translate="no">Text</code> + <code translate="no">UseColumnTextForButtonValue</code></td><td>Одна подпись на всех кнопках; пусто - у каждой кнопки текст её ячейки.</td></tr>
+    <tr><td><code translate="no">Hidden</code></td><td><code translate="no">Visible = false</code></td><td>Колонка хранит данные, но не рисуется и не занимает ширину.</td></tr>
+    <tr><td><code translate="no">DataPropertyName</code></td><td><code translate="no">DataPropertyName</code></td><td>Поле привязанной записи, которое показывает колонка.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  У каждого есть сеттер с индексом колонки - их и пишет дизайнер:
+  <code translate="no">SetColumnWidth</code>, <code translate="no">SetColumnSizeMode</code>,
+  <code translate="no">SetColumnAlign</code>, <code translate="no">SetColumnReadOnly</code>,
+  <code translate="no">SetColumnKind</code>, <code translate="no">SetColumnButtonText</code>,
+  <code translate="no">SetColumnHidden</code>, <code translate="no">SetColumnDataPropertyName</code>.
+  <code translate="no">AddColumn</code> добавляет колонку в конец, а
+  <code translate="no">Column(i)</code> возвращает саму колонку.
+</p>
+
+<div class="note">
+  <span class="note-title">Скрытая колонка ничего не перенумеровывает</span>
+  <p>
+    Индексы всегда считают все колонки, видимые и нет. Скрытая колонка
+    <code translate="no">id</code> - способ, которым строка несёт ключ, по
+    которому её загрузили: <code translate="no">CellByName(row, "id")</code>
+    читает её так, будто она на экране. Какие колонки рисуются, говорит
+    <code translate="no">VisibleColumns()</code>.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="rows">
+<h2>Строки и ячейки</h2>
+
+<figure class="code">
+<pre translate="no">g := mf.gridOrders
+g.<span class="f">AddRow</span>(<span class="s">"1003"</span>, <span class="s">"Initech"</span>, <span class="s">"3999.99"</span>)
+g.<span class="f">InsertRow</span>(<span class="n">0</span>, <span class="s">"1000"</span>, <span class="s">"Umbrella"</span>, <span class="s">"12.00"</span>) <span class="c">// в самый верх</span>
+g.<span class="f">SetCell</span>(<span class="n">1</span>, <span class="n">2</span>, <span class="s">"88.00"</span>)                    <span class="c">// без CellValueChanged</span>
+g.<span class="f">RemoveRow</span>(<span class="n">3</span>)
+
+n := g.<span class="f">RowCount</span>()
+who := g.<span class="f">Cell</span>(<span class="n">0</span>, <span class="n">1</span>)               <span class="c">// по индексу</span>
+id := g.<span class="f">CellByName</span>(<span class="n">0</span>, <span class="s">"id"</span>)       <span class="c">// по GridColumn.Name - и скрытые тоже</span>
+all := g.<span class="f">Rows</span>()                   <span class="c">// копия: [][]string</span>
+g.<span class="f">Clear</span>()</pre>
+</figure>
+
+<p>
+  <code translate="no">SetCell</code> и <code translate="no">AddRow</code> -
+  это говорит программа, поэтому <code translate="no">CellValueChanged</code>
+  они не вызывают: это событие - про то, что ввёл пользователь. Зато они
+  вызывают <code translate="no">RowsChanged</code> - для всего, что показывает
+  количество строк.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="kinds">
+<h2>Флажки и кнопки</h2>
+
+<p>
+  Ячейки колонки флажков - <code translate="no">"true"</code> или
+  <code translate="no">"false"</code>, нарисованные галочкой, которую
+  пользователь переключает одним кликом. Ячейки колонки кнопок - кнопки, для
+  действий над строкой, которые обычно нужны сетке:
+</p>
+
+<figure class="code">
+<pre translate="no">g.<span class="f">SetColumnKind</span>(<span class="n">3</span>, goforms.GridColumnCheckBox) <span class="c">// "true" / "false"</span>
+g.<span class="f">SetColumnKind</span>(<span class="n">4</span>, goforms.GridColumnButton)
+g.<span class="f">SetColumnButtonText</span>(<span class="n">4</span>, <span class="s">"Open..."</span>) <span class="c">// "" - подпись = текст ячейки</span>
+
+g.CellButtonClick.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e goforms.GridCellEventArgs) {
+	mf.<span class="f">openOrder</span>(g.<span class="f">CellByName</span>(e.Row, <span class="s">"id"</span>))
+})</pre>
+</figure>
+
+<p>
+  У кнопки нет значения, которое можно править, поэтому колонка кнопок
+  никогда не редактируется, а кнопки сетки «только для чтения» продолжают
+  работать - «только чтение» относится к значениям. У строки новой записи
+  кнопок нет: она ещё не строка.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="sizing">
+<h2>Ширины, высоты, прокрутка</h2>
+
+<figure class="code">
+<pre translate="no">g.<span class="f">SetAutoSizeColumnsMode</span>(goforms.SizeToContent) <span class="c">// все колонки разом</span>
+
+g.<span class="f">SetColumnWidth</span>(<span class="n">0</span>, <span class="n">56</span>)                      <span class="c">// пиксели; переводит в SizeFixed</span>
+g.<span class="f">SetColumnSizeMode</span>(<span class="n">1</span>, goforms.SizeFill)     <span class="c">// забирает остаток</span>
+g.<span class="f">Column</span>(<span class="n">1</span>).FillWeight = <span class="n">2</span>                   <span class="c">// вдвое больше другой Fill-колонки</span>
+g.<span class="f">SetColumnAlign</span>(<span class="n">3</span>, goforms.AlignRight)      <span class="c">// и заголовок тоже</span>
+
+g.<span class="f">SetRowHeight</span>(<span class="n">28</span>)                           <span class="c">// или:</span>
+g.<span class="f">SetAutoSizeRowsMode</span>(goforms.SizeToContent) <span class="c">// строка по высоте текста</span>
+g.<span class="f">SetScrollBars</span>(goforms.ScrollBarsVertical)  <span class="c">// колонки ужимаются по ширине</span>
+g.<span class="f">SetFrozenColumns</span>(<span class="n">1</span>)                        <span class="c">// не уезжает при прокрутке</span>
+g.<span class="f">SetShowHeader</span>(<span class="k">true</span>)
+g.<span class="f">SetGridLines</span>(<span class="k">true</span>)</pre>
+</figure>
+
+<p>
+  Порядок на каждой раскладке: фиксированные колонки берут свою ширину,
+  подгоняемые - ширину содержимого, а заполняющие делят остаток
+  пропорционально <code translate="no">FillWeight</code>, не опускаясь ниже
+  <code translate="no">MinWidth</code>. Режим колонки, записанный после общего
+  <code translate="no">SetAutoSizeColumnsMode</code>, перекрывает его для этой
+  колонки - именно так их пишет дизайнер.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th><code translate="no">SetScrollBars</code></th><th>Что происходит, когда содержимое больше</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">ScrollBarsBoth</code></td><td>По умолчанию: естественные размеры, обе полосы прокрутки по мере надобности.</td></tr>
+    <tr><td><code translate="no">ScrollBarsVertical</code></td><td>Колонки вписываются в ширину - её забирают заполняющие колонки или все ужимаются пропорционально до своих минимумов.</td></tr>
+    <tr><td><code translate="no">ScrollBarsHorizontal</code></td><td>Сетка растёт в высоту под все строки, как при <code translate="no">AutoSize</code>.</td></tr>
+    <tr><td><code translate="no">ScrollBarsNone</code></td><td>И то, и другое.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Холст дизайнера считает ширины колонок тем же кодом, что и работающая
+  сетка (golden-тест держит их в согласии), так что во время проектирования
+  вы видите то, что получите.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="editing">
+<h2>Редактирование</h2>
+
+<p>
+  Сетка редактируема, если она сама или колонка не «только для чтения».
+  Правка применяется по мере ввода: к моменту закрытия редактора ячейка - а у
+  привязанной сетки и поле записи - уже содержит текст.
+</p>
+
+<figure class="code">
+<pre translate="no">g.<span class="f">SetReadOnly</span>(<span class="k">false</span>)          <span class="c">// по умолчанию: все ячейки правятся</span>
+g.<span class="f">SetColumnReadOnly</span>(<span class="n">0</span>, <span class="k">true</span>)  <span class="c">// кроме этой колонки</span>
+
+g.CellValueChanged.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e goforms.GridCellValueEventArgs) {
+	log.<span class="f">Printf</span>(<span class="s">"row %d col %d: %q -&gt; %q"</span>, e.Row, e.Col, e.OldValue, e.NewValue)
+})
+
+g.<span class="f">BeginEdit</span>(<span class="n">2</span>, <span class="n">1</span>) <span class="c">// открыть редактор из кода</span>
+g.<span class="f">EndEdit</span>()</pre>
+</figure>
+
+<p>
+  <code translate="no">CellValueChanged</code> срабатывает на каждое изменение
+  пользователя, с текстом до и после. У привязанной сетки текст, который не
+  преобразуется в тип поля (буквы в числовой колонке), возвращается к прежнему.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="keys">
+<h2>Мышь и клавиатура</h2>
+
+<p>Что может пользователь работающей сетки:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Жест</th><th>Что делает</th></tr></thead>
+  <tbody>
+    <tr><td>Клик по ячейке</td><td>Выделяет её (а у привязанной сетки - переводит источник на её запись).</td></tr>
+    <tr><td>Ещё один клик по выделенной ячейке</td><td>Открывает её редактор.</td></tr>
+    <tr><td>Ввод на выделенной ячейке</td><td>Открывает редактор, и введённое заменяет текст - как в WinForms.</td></tr>
+    <tr><td><kbd>Enter</kbd> или <kbd>Escape</kbd></td><td>Закрывает редактор. Правка уже применена.</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd>, <kbd>Delete</kbd>, <kbd>Backspace</kbd> в редакторе</td><td>Правят его текст: <kbd>Delete</kbd> здесь удаляет символ, а не строку.</td></tr>
+    <tr><td>Стрелки, затем <kbd>Space</kbd></td><td>Двигают клавиатурную подсветку по ячейкам и выделяют подсвеченную.</td></tr>
+    <tr><td>Клик по ячейке-флажку</td><td>Переключает его.</td></tr>
+    <tr><td>Клик по ячейке-кнопке</td><td>Вызывает <code translate="no">CellButtonClick</code>.</td></tr>
+    <tr><td>Ввод в строку со <code>*</code></td><td>Превращает её в новую строку (запись); ниже появляется новая строка <code>*</code>.</td></tr>
+    <tr><td><kbd>Delete</kbd> на выделенной строке</td><td>Удаляет её, если удаление разрешено, - после <code translate="no">UserDeletingRow</code>, которое может отменить.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<figure class="shot">
+  <img src="../assets/app-dgv-newrow.png" alt="Сетка клиентов после того, как в строку новой записи ввели нового клиента - Chop-suey Chinese из Bern; под ней новая пустая строка со звёздочкой, у которой открыт редактор ячейки City. Группа Details показывает нового клиента." loading="lazy">
+  <figcaption>Клиент, введённый в строку *: он стал 9-й записью среза, подробности пошли за ним, а следующая строка * готова - её City открыт вторым кликом.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="selection">
+<h2>Выделение</h2>
+
+<figure class="code">
+<pre translate="no">g.<span class="f">SelectCell</span>(<span class="n">4</span>, <span class="n">0</span>)
+row, col := g.<span class="f">SelectedRow</span>(), g.<span class="f">SelectedColumn</span>() <span class="c">// -1, если ничего</span>
+g.<span class="f">ScrollToRow</span>(<span class="n">40</span>)
+g.<span class="f">ClearSelection</span>()
+
+g.SelectionChanged.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e goforms.GridCellEventArgs) {
+	<span class="k">if</span> e.Row &gt;= <span class="n">0</span> {
+		mf.lblStatus.<span class="f">SetText</span>(g.<span class="f">Cell</span>(e.Row, <span class="n">1</span>))
+	}
+})</pre>
+</figure>
+
+<p>
+  Выделение - одна ячейка. <code translate="no">SelectionChanged</code>
+  срабатывает, когда оно сдвигается - на другую строку или колонку, - и с
+  <code translate="no">Row == -1</code>, когда снято.
+  <code translate="no">CellClick</code> срабатывает на каждый клик, сдвинулось
+  выделение или нет.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="events">
+<h2>События</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Событие</th><th>Аргумент</th><th>Когда</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">CellClick</code></td><td><code translate="no">GridCellEventArgs</code></td><td>Клик по ячейке.</td></tr>
+    <tr><td><code translate="no">SelectionChanged</code></td><td><code translate="no">GridCellEventArgs</code></td><td>Сменилась выделенная ячейка; <code translate="no">Row</code> = -1, если ничего не выделено.</td></tr>
+    <tr><td><code translate="no">CellValueChanged</code></td><td><code translate="no">GridCellValueEventArgs</code></td><td>Пользователь изменил ячейку: <code translate="no">OldValue</code>, <code translate="no">NewValue</code>.</td></tr>
+    <tr><td><code translate="no">CellButtonClick</code></td><td><code translate="no">GridCellEventArgs</code></td><td>Нажата ячейка-кнопка.</td></tr>
+    <tr><td><code translate="no">RowsChanged</code></td><td><code translate="no">EventArgs</code></td><td>Строки добавлены, удалены или заменены.</td></tr>
+    <tr><td><code translate="no">UserAddedRow</code></td><td><code translate="no">GridRowEventArgs</code></td><td>Ввод в строку новой записи превратил её в строку.</td></tr>
+    <tr><td><code translate="no">UserDeletingRow</code></td><td><code translate="no">*GridRowCancelEventArgs</code></td><td>Пользователь нажал <kbd>Delete</kbd> на строке. Поставьте <code translate="no">Cancel</code>, чтобы оставить её.</td></tr>
+    <tr><td><code translate="no">UserDeletedRow</code></td><td><code translate="no">GridRowEventArgs</code></td><td>Строки (и её записи) больше нет.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Плюс события любого контрола: <code translate="no">Click</code>,
+  <code translate="no">KeyDown</code>, <code translate="no">MouseWheel</code>,
+  <code translate="no">GotFocus</code> и остальные. Дизайнер привязывает любое
+  из них с правильным типом аргумента.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="binding">
+<h2>Привязка к записям</h2>
+
+<p>
+  <code translate="no">BindingSource</code> держит список записей - срез
+  структур или указателей на структуры - и текущую позицию, и синхронизирует
+  все привязанные к нему контролы. Привязанная сетка показывает строку на
+  каждую запись, а каждая колонка - поле, названное её
+  <code translate="no">DataPropertyName</code>.
+</p>
+
+<div class="compare">
+<figure class="code">
+  <figcaption translate="no">Models/customer.go</figcaption>
+<pre translate="no"><span class="k">package</span> models
+
+<span class="k">type</span> <span class="t">Customer</span> <span class="k">struct</span> {
+	ID     <span class="t">int</span>
+	Name   <span class="t">string</span>
+	City   <span class="t">string</span>
+	Credit <span class="t">float64</span>
+	Active <span class="t">bool</span>
+}</pre>
+</figure>
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="c">// а данные отдаёте вы, когда они есть:</span>
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.bsCustomers.<span class="f">SetDataSource</span>(&amp;customers) <span class="c">// *[]models.Customer</span>
+}</pre>
+</figure>
+</div>
+
+<figure class="code">
+  <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no"><span class="c">// это пишет дизайнер:</span>
+mf.bsCustomers = <span class="f">goforms.NewBindingSource</span>()
+
+mf.gridCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers)
+mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">0</span>, <span class="s">"ID"</span>)
+mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">1</span>, <span class="s">"Name"</span>)
+
+mf.bsCustomers.<span class="f">Bind</span>(mf.txtName, <span class="s">"Text"</span>, <span class="s">"Name"</span>)
+mf.bsCustomers.<span class="f">Bind</span>(mf.numCredit, <span class="s">"Value"</span>, <span class="s">"Credit"</span>)
+mf.bsCustomers.<span class="f">Bind</span>(mf.chkActive, <span class="s">"Checked"</span>, <span class="s">"Active"</span>)</pre>
+</figure>
+
+<ul>
+  <li>Выбор строки двигает позицию; движение позиции (<code translate="no">MoveNext</code>, <code translate="no">SetPosition</code>) выделяет строку.</li>
+  <li>Изменённая ячейка записывает поле обратно с преобразованием: <code translate="no">string</code>, <code translate="no">bool</code>, все целые и вещественные типы. Текст, который не преобразуется, возвращается.</li>
+  <li>Поля ищутся по имени, поэтому показать можно только экспортируемые.</li>
+  <li>Сетка, где ни одна колонка не называет поле, показывает поле с именем заголовка колонки: колонка <code translate="no">"Name"</code> - поле <code translate="no">Name</code>.</li>
+</ul>
+
+<figure class="code">
+<pre translate="no">mf.bsCustomers.<span class="f">MoveFirst</span>()
+mf.bsCustomers.<span class="f">MovePrevious</span>()
+mf.bsCustomers.<span class="f">MoveNext</span>()
+mf.bsCustomers.<span class="f">MoveLast</span>()
+mf.bsCustomers.<span class="f">SetPosition</span>(<span class="n">3</span>)
+
+c := mf.bsCustomers.<span class="f">Current</span>().(<span class="t">models.Customer</span>) <span class="c">// запись в Position</span>
+n := mf.bsCustomers.<span class="f">Count</span>()
+
+mf.bsCustomers.PositionChanged.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.lblPosition.<span class="f">SetText</span>(fmt.<span class="f">Sprintf</span>(<span class="s">"%d / %d"</span>, mf.bsCustomers.<span class="f">Position</span>()+<span class="n">1</span>, mf.bsCustomers.<span class="f">Count</span>()))
+})
+
+<span class="c">// поменяли срез в коде? покажите:</span>
+customers = <span class="f">append</span>(customers, <span class="t">models.Customer</span>{ID: <span class="n">9</span>, Name: <span class="s">"Wolski"</span>})
+mf.bsCustomers.<span class="f">ResetBindings</span>()</pre>
+</figure>
+
+<p><code translate="no">ListBox</code> и <code translate="no">ComboBox</code> привязываются так же, показывая по одному полю каждой записи:</p>
+
+<figure class="code">
+<pre translate="no">mf.lstCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers) <span class="c">// по пункту на запись</span>
+mf.lstCustomers.<span class="f">SetDisplayMember</span>(<span class="s">"Name"</span>)
+mf.cmbCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers)
+mf.cmbCustomers.<span class="f">SetDisplayMember</span>(<span class="s">"City"</span>)</pre>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="details">
+<h2>Панель подробностей</h2>
+
+<p>
+  <code translate="no">Bind(контрол, свойство, поле)</code> - это
+  <code translate="no">control.DataBindings.Add</code>: контрол показывает поле
+  текущей записи, а когда пользователь его меняет - записывает обратно, и
+  ячейка сетки меняется вместе с ним. Привязываемые свойства:
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Свойство</th><th>Контролы</th></tr></thead>
+  <tbody>
+    <tr><td><code translate="no">Text</code></td><td><code translate="no">TextBox</code>, <code translate="no">MaskedTextBox</code>, <code translate="no">RichTextBox</code>, <code translate="no">Label</code>, <code translate="no">LinkLabel</code></td></tr>
+    <tr><td><code translate="no">Checked</code></td><td><code translate="no">CheckBox</code>, <code translate="no">RadioButton</code></td></tr>
+    <tr><td><code translate="no">Value</code></td><td><code translate="no">NumericUpDown</code>, <code translate="no">TrackBar</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Первый скриншот на этой странице - ровно это: четыре контрола в
+  <em>Details</em> привязаны к тому же источнику, что и сетка, а кнопки
+  <kbd>|&lt;</kbd> <kbd>&lt;</kbd> <kbd>&gt;</kbd> <kbd>&gt;|</kbd> вызывают
+  <code translate="no">MoveFirst</code> … <code translate="no">MoveLast</code>.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="add-delete">
+<h2>Добавление и удаление</h2>
+
+<figure class="code">
+<pre translate="no">mf.gridCustomers.<span class="f">SetAllowUserToAddRows</span>(<span class="k">true</span>)    <span class="c">// строка *</span>
+mf.gridCustomers.<span class="f">SetAllowUserToDeleteRows</span>(<span class="k">true</span>) <span class="c">// Delete удаляет выбранную строку</span>
+mf.bsCustomers.<span class="f">SetDataSource</span>(&amp;customers)        <span class="c">// по указателю - срез должен расти</span>
+
+mf.gridCustomers.UserAddedRow.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e goforms.GridRowEventArgs) {
+	customers[e.Row].ID = <span class="f">nextID</span>() <span class="c">// запись уже в срезе</span>
+	mf.bsCustomers.<span class="f">ResetBindings</span>()
+})</pre>
+</figure>
+
+<p>
+  Если добавление разрешено, сетка рисует ещё одну строку, отмеченную
+  <code>*</code>. Первый введённый в неё символ превращает её в строку: у
+  привязанной сетки в срез добавляется запись с нулевыми значениями, введённое
+  поле записывается в неё, остальные ячейки показывают остальные её поля, и
+  срабатывает <code translate="no">UserAddedRow</code>. Ниже появляется новая
+  строка <code>*</code>. Выделение строки <code>*</code> позицию не двигает -
+  это ещё не запись.
+</p>
+
+<p>
+  Если разрешено удаление, <kbd>Delete</kbd> на выделенной строке (не во время
+  правки) вызывает <code translate="no">UserDeletingRow</code>, удаляет строку
+  и её запись, если обработчик не отменил, затем вызывает
+  <code translate="no">UserDeletedRow</code>:
+</p>
+
+<figure class="code">
+  <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">gridCustomers_UserDeletingRow</span>(sender <span class="k">any</span>, e *goforms.GridRowCancelEventArgs) {
+	<span class="k">if</span> customers[e.Row].Credit &gt; <span class="n">0</span> {
+		e.Cancel = <span class="k">true</span> <span class="c">// должников не удаляем</span>
+	}
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">gridCustomers_UserDeletedRow</span>(sender <span class="k">any</span>, e goforms.GridRowEventArgs) {
+	mf.dirty = <span class="k">true</span>
+}</pre>
+</figure>
+
+<figure class="code">
+<pre translate="no"><span class="c">// то же самое из меню или кнопки:</span>
+<span class="k">if</span> _, err := mf.bsCustomers.<span class="f">AddNew</span>(); err != <span class="k">nil</span> { <span class="c">// нулевая запись в конец</span>
+	<span class="f">goforms.ShowMessageBox</span>(mf.Form, err.<span class="f">Error</span>(), <span class="s">"Customers"</span>, <span class="t">goforms.MessageBoxOK</span>, <span class="t">goforms.MessageBoxError</span>, <span class="k">nil</span>)
+}
+mf.bsCustomers.<span class="f">RemoveAt</span>(mf.bsCustomers.<span class="f">Position</span>())</pre>
+</figure>
+
+<div class="note warn">
+  <span class="note-title">Срез надо отдавать по указателю</span>
+  <p>
+    <code translate="no">BindingSource</code>, которому дали
+    <code translate="no">customers</code>, держит копию заголовка среза и не
+    может его удлинить, поэтому привязанная к нему сетка не рисует строку
+    <code>*</code>, а <code translate="no">AddNew</code> возвращает ошибку.
+    Отдавайте <code translate="no">&amp;customers</code>. Непривязанная сетка в
+    любом случае добавляет и удаляет обычные строки.
+  </p>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-add">
+<h2>Сетка на форме</h2>
+
+<p>
+  На вкладке <strong>Controls</strong> дизайнера <em>DataGridView</em> - в
+  разделе <em>Data</em>, а <em>BindingSource</em> - в <em>Components</em>: места
+  на форме у него нет, поэтому он попадает в лоток под холстом. Кликните или
+  перетащите любой из них на форму.
+</p>
+
+<figure class="shot">
+  <img src="../assets/designer-overview.png" alt="Дизайнер GoForms в тёмной теме VS Code: на холсте форма Customers с полосой меню, сеткой с колонками и строкой со звёздочкой и группой Details; вкладка Controls со списком контролов; в лотке компонентов внизу menuStrip1, bsCustomers и toolTip1." loading="lazy">
+  <figcaption>Форма с этой страницы в дизайнере. Сетка рисует настоящие колонки настоящей ширины - и строку *, раз добавление разрешено. В лотке - компоненты формы: меню, источник привязки и подсказка.</figcaption>
+</figure>
+
+<p>
+  <strong>Смарт-тег</strong> сетки - маленькая стрелка в её правом верхнем
+  углу - содержит частые задачи: растянуть по контейнеру, добавить колонку,
+  перейти к списку колонок и сделать колонки из типа.
+</p>
+
+<figure class="shot">
+  <img src="../assets/designer-dgv-smarttag.png" alt="Открытый смарт-тег DataGridView Tasks рядом с сеткой на холсте: Dock in Parent Container, Add Column, Edit Columns и Columns from a Type." loading="lazy">
+  <figcaption>DataGridView Tasks.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-columns">
+<h2>Список колонок</h2>
+
+<div class="compare">
+<figure class="shot">
+  <img src="../assets/designer-dgv-columns.png" alt="Список Columns в панели свойств: строка на колонку с подписью, типом (Text или Checkbox), полем и кнопками шестерёнки, глаза и удаления; ниже свойства самой сетки, где отмечены allowUserToAddRows и allowUserToDeleteRows, а dataSource = bsCustomers." loading="lazy">
+  <figcaption>Список колонок и свойства сетки под ним.</figcaption>
+</figure>
+<div>
+<p>По строке на колонку, по порядку:</p>
+<ul>
+  <li><strong>⠿</strong> - перетащите, чтобы переставить. Сеттеры едут за своей колонкой.</li>
+  <li><strong>Подпись</strong> - текст заголовка.</li>
+  <li><strong>Тип</strong> - Text, Checkbox или Button.</li>
+  <li><strong>Поле</strong> - её <code translate="no">DataPropertyName</code>.</li>
+  <li><strong>⚙</strong> - править колонку целиком (ниже).</li>
+  <li><strong>👁</strong> - скрыть или показать.</li>
+  <li><strong>⌫</strong> - удалить.</li>
+  <li><strong>+ Column</strong> добавляет колонку в конец.</li>
+</ul>
+<p>
+  Под списком - свойства самой сетки: <em>columnsMode</em>, <em>rowsMode</em>,
+  <em>rowHeight</em>, <em>scrollBars</em>, <em>frozenColumns</em>/<em>Rows</em>,
+  <em>gridLines</em>, <em>showHeader</em>, <em>readOnly</em>,
+  <em>allowUserToAddRows</em>, <em>allowUserToDeleteRows</em> и
+  <em>dataSource</em>. Жирное свойство задано в файле; ↺ рядом убирает строку.
+</p>
+</div>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-column">
+<h2>Колонка целиком</h2>
+
+<p>
+  <strong>Кликните по заголовку колонки на холсте</strong> - или по ⚙ в
+  списке - и панель откроет для неё группу <em>Column</em>, над настройками
+  самой сетки. Заголовок остаётся подсвеченным, пока правится эта колонка;
+  выбор другого контрола её отпускает.
+</p>
+
+<figure class="shot">
+  <img src="../assets/designer-dgv-column.png" alt="Заголовок колонки Credit подсвечен на холсте, а в панели свойств группа Column 4: Credit с полями HeaderText, ColumnType, DataPropertyName, Width, AutoSizeMode, Alignment = Right, ReadOnly и Visible." loading="lazy">
+  <figcaption>Credit, выбранная по заголовку: выровнена вправо, и холст сразу это показывает.</figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>В панели</th><th>Пишет</th></tr></thead>
+  <tbody>
+    <tr><td>HeaderText</td><td>Подпись в <code translate="no">NewDataGridView(…)</code></td></tr>
+    <tr><td>ColumnType</td><td><code translate="no">SetColumnKind(i, goforms.GridColumnCheckBox)</code>, а для колонки кнопок ещё <em>Text</em> для <code translate="no">SetColumnButtonText</code></td></tr>
+    <tr><td>DataPropertyName</td><td><code translate="no">SetColumnDataPropertyName(i, "Credit")</code></td></tr>
+    <tr><td>Width</td><td><code translate="no">SetColumnWidth(i, 56)</code> - фиксированная ширина</td></tr>
+    <tr><td>AutoSizeMode</td><td><code translate="no">SetColumnSizeMode(i, goforms.SizeFill)</code>; <em>(the grid's)</em> ничего не пишет</td></tr>
+    <tr><td>Alignment</td><td><code translate="no">SetColumnAlign(i, goforms.AlignRight)</code></td></tr>
+    <tr><td>ReadOnly</td><td><code translate="no">SetColumnReadOnly(i, true)</code></td></tr>
+    <tr><td>Visible</td><td><code translate="no">SetColumnHidden(i, true)</code>, если флажок снят</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Каждое изменение - одна правка файла дизайнера, отменяемая
+  <kbd>Ctrl</kbd>+<kbd>Z</kbd>, как любая другая, и холст сразу перерисовывает
+  сетку.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-type">
+<h2>Колонки из типа</h2>
+
+<p>
+  <strong>Columns from a Type…</strong> в смарт-теге показывает структуры,
+  объявленные в вашем проекте. Выберите одну -
+  <code translate="no">models.Customer</code> - и сетка получит по колонке на
+  каждое экспортируемое поле, с его именем в заголовке и привязкой к нему;
+  поле <code translate="no">bool</code> становится колонкой флажков. Это
+  заменяет прежние колонки сетки; дальше донастройте их.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="designer-binding">
+<h2>Привязка в дизайнере</h2>
+
+<p>
+  Задайте сетке <em>dataSource</em> - источник привязки формы: список
+  предлагает компоненты <code translate="no">BindingSource</code> этой формы.
+  Тогда у каждого привязываемого контрола (текстового поля, флажка, числового
+  поля) появляется группа <em>(DataBindings)</em>: источник и поле.
+</p>
+
+<div class="compare">
+<figure class="shot">
+  <img src="../assets/designer-binding.png" alt="Панель свойств txtName: группа Tool Tips с полем ToolTip on toolTip1 и группа (DataBindings), где Text привязан к bsCustomers, поле Name." loading="lazy">
+  <figcaption>txtName.Text привязан к bsCustomers.Name.</figcaption>
+</figure>
+<figure class="shot">
+  <img src="../assets/designer-tooltip.png" alt="Панель свойств btnNext: ToolTip on toolTip1 = Next customer, событие Click привязано к btnNext_Click, рядом Go to и кнопка отвязки." loading="lazy">
+  <figcaption>btnNext: подсказка и привязанный Click.</figcaption>
+</figure>
+</div>
+
+<p>
+  Чего дизайнер не может - так это дать источнику данные: это работа
+  программы, в <code translate="no">Load</code> или там, где данные появляются:
+  <code translate="no">mf.bsCustomers.SetDataSource(&amp;customers)</code>.
+  До тех пор холст показывает ячейки-заглушки.
+</p>
+</section>
+
+<!-- ================================================================== -->
+<section id="example">
+<h2>Пример целиком</h2>
+
+<p>
+  Форма со всех скриншотов этой страницы - в том виде, в каком её оставил
+  дизайнер. Первый файл - дизайнера, второй пишете вы.
+</p>
+
+<figure class="code">
+  <figcaption translate="no">Forms/MainForm/MainForm-designer.go</figcaption>
+<pre translate="no"><span class="k">package</span> mainform
+
+<span class="k">import</span> <span class="s">"github.com/Go-Forms/GoForms"</span>
+
+<span class="k">type</span> <span class="t">MainForm</span> <span class="k">struct</span> {
+	*<span class="t">goforms.Form</span>
+	menuStrip1    *<span class="t">goforms.MenuStrip</span>
+	bsCustomers   *<span class="t">goforms.BindingSource</span>
+	toolTip1      *<span class="t">goforms.ToolTip</span>
+	gridCustomers *<span class="t">goforms.DataGridView</span>
+	grpDetails    *<span class="t">goforms.GroupBox</span>
+	lblName       *<span class="t">goforms.Label</span>
+	txtName       *<span class="t">goforms.TextBox</span>
+	lblCity       *<span class="t">goforms.Label</span>
+	txtCity       *<span class="t">goforms.TextBox</span>
+	lblCredit     *<span class="t">goforms.Label</span>
+	numCredit     *<span class="t">goforms.NumericUpDown</span>
+	chkActive     *<span class="t">goforms.CheckBox</span>
+	btnFirst      *<span class="t">goforms.Button</span>
+	btnPrev       *<span class="t">goforms.Button</span>
+	btnNext       *<span class="t">goforms.Button</span>
+	btnLast       *<span class="t">goforms.Button</span>
+	lblPosition   *<span class="t">goforms.Label</span>
+}
+
+<span class="k">func</span> <span class="f">NewMainForm</span>() *<span class="t">MainForm</span> {
+	mf := &amp;<span class="t">MainForm</span>{Form: <span class="f">goforms.NewForm</span>(<span class="s">"Customers"</span>, <span class="n">900</span>, <span class="n">520</span>)}
+	mf.<span class="f">initializeComponent</span>()
+	<span class="k">return</span> mf
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">initializeComponent</span>() {
+	mf.<span class="f">SetClientSize</span>(<span class="n">900</span>, <span class="n">520</span>)
+	mf.Load.<span class="f">Handle</span>(mf.MainForm_Load)
+
+	mf.menuStrip1 = <span class="f">goforms.NewMenuStrip</span>(
+		<span class="f">goforms.NewTopMenu</span>(<span class="s">"File"</span>,
+			<span class="f">goforms.NewMenuItem</span>(<span class="s">"New customer"</span>).<span class="f">OnClick</span>(mf.mnuNew_Click),
+			<span class="f">goforms.NewMenuItem</span>(<span class="s">"Delete customer"</span>).<span class="f">OnClick</span>(mf.mnuDelete_Click),
+			<span class="f">goforms.NewMenuSeparator</span>(),
+			<span class="f">goforms.NewMenuItem</span>(<span class="s">"Export"</span>).<span class="f">Add</span>(
+				<span class="f">goforms.NewMenuItem</span>(<span class="s">"CSV..."</span>).<span class="f">OnClick</span>(mf.mnuExportCsv_Click),
+				<span class="f">goforms.NewMenuItem</span>(<span class="s">"JSON..."</span>).<span class="f">SetEnabled</span>(<span class="k">false</span>),
+			),
+		),
+		<span class="f">goforms.NewTopMenu</span>(<span class="s">"View"</span>,
+			<span class="f">goforms.NewMenuItem</span>(<span class="s">"Refresh"</span>).<span class="f">OnClick</span>(mf.mnuRefresh_Click),
+		),
+	)
+	mf.<span class="f">SetMainMenu</span>(mf.menuStrip1)
+
+	mf.bsCustomers = <span class="f">goforms.NewBindingSource</span>()
+
+	mf.toolTip1 = <span class="f">goforms.NewToolTip</span>()
+
+	mf.gridCustomers = <span class="f">goforms.NewDataGridView</span>(<span class="s">"ID"</span>, <span class="s">"Name"</span>, <span class="s">"City"</span>, <span class="s">"Credit"</span>, <span class="s">"Active"</span>)
+	mf.gridCustomers.<span class="f">SetBounds</span>(<span class="n">12</span>, <span class="n">12</span>, <span class="n">560</span>, <span class="n">496</span>)
+	mf.gridCustomers.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorBottom | goforms.AnchorLeft | goforms.AnchorRight)
+	mf.gridCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers)
+	mf.gridCustomers.<span class="f">SetAllowUserToAddRows</span>(<span class="k">true</span>)
+	mf.gridCustomers.<span class="f">SetAllowUserToDeleteRows</span>(<span class="k">true</span>)
+	mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">0</span>, <span class="s">"ID"</span>)
+	mf.gridCustomers.<span class="f">SetColumnWidth</span>(<span class="n">0</span>, <span class="n">56</span>)
+	mf.gridCustomers.<span class="f">SetColumnReadOnly</span>(<span class="n">0</span>, <span class="k">true</span>)
+	mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">1</span>, <span class="s">"Name"</span>)
+	mf.gridCustomers.<span class="f">SetColumnSizeMode</span>(<span class="n">1</span>, goforms.SizeFill)
+	mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">2</span>, <span class="s">"City"</span>)
+	mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">3</span>, <span class="s">"Credit"</span>)
+	mf.gridCustomers.<span class="f">SetColumnAlign</span>(<span class="n">3</span>, goforms.AlignRight)
+	mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">4</span>, <span class="s">"Active"</span>)
+	mf.gridCustomers.<span class="f">SetColumnKind</span>(<span class="n">4</span>, goforms.GridColumnCheckBox)
+	mf.gridCustomers.UserDeletingRow.<span class="f">Handle</span>(mf.gridCustomers_UserDeletingRow)
+	mf.<span class="f">AddControl</span>(mf.gridCustomers)
+
+	mf.grpDetails = <span class="f">goforms.NewGroupBox</span>(<span class="s">"Details"</span>, <span class="n">300</span>, <span class="n">250</span>)
+	mf.grpDetails.<span class="f">SetBounds</span>(<span class="n">588</span>, <span class="n">12</span>, <span class="n">300</span>, <span class="n">250</span>)
+	mf.grpDetails.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorRight)
+
+	mf.lblName = <span class="f">goforms.NewLabel</span>(<span class="s">"Name"</span>)
+	mf.lblName.<span class="f">SetBounds</span>(<span class="n">16</span>, <span class="n">30</span>, <span class="n">70</span>, <span class="n">24</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.lblName)
+
+	mf.txtName = <span class="f">goforms.NewTextBox</span>()
+	mf.txtName.<span class="f">SetBounds</span>(<span class="n">92</span>, <span class="n">26</span>, <span class="n">190</span>, <span class="n">32</span>)
+	mf.bsCustomers.<span class="f">Bind</span>(mf.txtName, <span class="s">"Text"</span>, <span class="s">"Name"</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.txtName)
+
+	mf.lblCity = <span class="f">goforms.NewLabel</span>(<span class="s">"City"</span>)
+	mf.lblCity.<span class="f">SetBounds</span>(<span class="n">16</span>, <span class="n">74</span>, <span class="n">70</span>, <span class="n">24</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.lblCity)
+
+	mf.txtCity = <span class="f">goforms.NewTextBox</span>()
+	mf.txtCity.<span class="f">SetBounds</span>(<span class="n">92</span>, <span class="n">70</span>, <span class="n">190</span>, <span class="n">32</span>)
+	mf.bsCustomers.<span class="f">Bind</span>(mf.txtCity, <span class="s">"Text"</span>, <span class="s">"City"</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.txtCity)
+
+	mf.lblCredit = <span class="f">goforms.NewLabel</span>(<span class="s">"Credit"</span>)
+	mf.lblCredit.<span class="f">SetBounds</span>(<span class="n">16</span>, <span class="n">118</span>, <span class="n">70</span>, <span class="n">24</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.lblCredit)
+
+	mf.numCredit = <span class="f">goforms.NewNumericUpDown</span>(<span class="n">0</span>, <span class="n">100000</span>, <span class="n">0</span>)
+	mf.numCredit.<span class="f">SetBounds</span>(<span class="n">92</span>, <span class="n">114</span>, <span class="n">190</span>, <span class="n">32</span>)
+	mf.bsCustomers.<span class="f">Bind</span>(mf.numCredit, <span class="s">"Value"</span>, <span class="s">"Credit"</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.numCredit)
+
+	mf.chkActive = <span class="f">goforms.NewCheckBox</span>(<span class="s">"Active customer"</span>)
+	mf.chkActive.<span class="f">SetBounds</span>(<span class="n">92</span>, <span class="n">158</span>, <span class="n">190</span>, <span class="n">28</span>)
+	mf.bsCustomers.<span class="f">Bind</span>(mf.chkActive, <span class="s">"Checked"</span>, <span class="s">"Active"</span>)
+	mf.grpDetails.<span class="f">AddControl</span>(mf.chkActive)
+	mf.<span class="f">AddControl</span>(mf.grpDetails)
+
+	mf.btnFirst = <span class="f">goforms.NewButton</span>(<span class="s">"|&lt;"</span>)
+	mf.btnFirst.<span class="f">SetBounds</span>(<span class="n">588</span>, <span class="n">276</span>, <span class="n">52</span>, <span class="n">32</span>)
+	mf.btnFirst.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorRight)
+	mf.btnFirst.Click.<span class="f">Handle</span>(mf.btnFirst_Click)
+	mf.toolTip1.<span class="f">SetToolTip</span>(mf.btnFirst, <span class="s">"First customer"</span>)
+	mf.<span class="f">AddControl</span>(mf.btnFirst)
+
+	mf.btnPrev = <span class="f">goforms.NewButton</span>(<span class="s">"&lt;"</span>)
+	mf.btnPrev.<span class="f">SetBounds</span>(<span class="n">646</span>, <span class="n">276</span>, <span class="n">52</span>, <span class="n">32</span>)
+	mf.btnPrev.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorRight)
+	mf.btnPrev.Click.<span class="f">Handle</span>(mf.btnPrev_Click)
+	mf.toolTip1.<span class="f">SetToolTip</span>(mf.btnPrev, <span class="s">"Previous customer"</span>)
+	mf.<span class="f">AddControl</span>(mf.btnPrev)
+
+	mf.btnNext = <span class="f">goforms.NewButton</span>(<span class="s">"&gt;"</span>)
+	mf.btnNext.<span class="f">SetBounds</span>(<span class="n">778</span>, <span class="n">276</span>, <span class="n">52</span>, <span class="n">32</span>)
+	mf.btnNext.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorRight)
+	mf.btnNext.Click.<span class="f">Handle</span>(mf.btnNext_Click)
+	mf.toolTip1.<span class="f">SetToolTip</span>(mf.btnNext, <span class="s">"Next customer"</span>)
+	mf.<span class="f">AddControl</span>(mf.btnNext)
+
+	mf.btnLast = <span class="f">goforms.NewButton</span>(<span class="s">"&gt;|"</span>)
+	mf.btnLast.<span class="f">SetBounds</span>(<span class="n">836</span>, <span class="n">276</span>, <span class="n">52</span>, <span class="n">32</span>)
+	mf.btnLast.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorRight)
+	mf.btnLast.Click.<span class="f">Handle</span>(mf.btnLast_Click)
+	mf.toolTip1.<span class="f">SetToolTip</span>(mf.btnLast, <span class="s">"Last customer"</span>)
+	mf.<span class="f">AddControl</span>(mf.btnLast)
+
+	mf.lblPosition = <span class="f">goforms.NewLabel</span>(<span class="s">"0 / 0"</span>)
+	mf.lblPosition.<span class="f">SetBounds</span>(<span class="n">704</span>, <span class="n">280</span>, <span class="n">68</span>, <span class="n">24</span>)
+	mf.lblPosition.<span class="f">SetAnchor</span>(goforms.AnchorTop | goforms.AnchorRight)
+	mf.<span class="f">AddControl</span>(mf.lblPosition)
+}</pre>
+</figure>
+
+<figure class="code">
+  <figcaption translate="no">Forms/MainForm/MainForm.go</figcaption>
+<pre translate="no"><span class="k">package</span> mainform
+
+<span class="k">import</span> (
+	<span class="s">"fmt"</span>
+
+	<span class="s">"github.com/Go-Forms/GoForms"</span>
+
+	<span class="s">"example.com/customers/Models"</span>
+)
+
+<span class="c">// customers - то, что показывает сетка. Источник привязки держит указатель</span>
+<span class="c">// на срез, поэтому строка новой записи может дописывать в него, а Delete -</span>
+<span class="c">// удалять из него.</span>
+<span class="k">var</span> customers = []<span class="t">models.Customer</span>{
+	{ID: <span class="n">1</span>, Name: <span class="s">"Alfreds Futterkiste"</span>, City: <span class="s">"Berlin"</span>, Credit: <span class="n">12500</span>, Active: <span class="k">true</span>},
+	{ID: <span class="n">2</span>, Name: <span class="s">"Ana Trujillo Emparedados"</span>, City: <span class="s">"México D.F."</span>, Credit: <span class="n">3400</span>, Active: <span class="k">true</span>},
+	{ID: <span class="n">3</span>, Name: <span class="s">"Antonio Moreno Taquería"</span>, City: <span class="s">"México D.F."</span>, Credit: <span class="n">0</span>, Active: <span class="k">false</span>},
+	{ID: <span class="n">4</span>, Name: <span class="s">"Around the Horn"</span>, City: <span class="s">"London"</span>, Credit: <span class="n">8900.5</span>, Active: <span class="k">true</span>},
+	{ID: <span class="n">5</span>, Name: <span class="s">"Berglunds snabbköp"</span>, City: <span class="s">"Luleå"</span>, Credit: <span class="n">21000</span>, Active: <span class="k">true</span>},
+	{ID: <span class="n">6</span>, Name: <span class="s">"Blauer See Delikatessen"</span>, City: <span class="s">"Mannheim"</span>, Credit: <span class="n">640</span>, Active: <span class="k">false</span>},
+	{ID: <span class="n">7</span>, Name: <span class="s">"Blondel père et fils"</span>, City: <span class="s">"Strasbourg"</span>, Credit: <span class="n">15300</span>, Active: <span class="k">true</span>},
+	{ID: <span class="n">8</span>, Name: <span class="s">"Bólido Comidas preparadas"</span>, City: <span class="s">"Madrid"</span>, Credit: <span class="n">2200</span>, Active: <span class="k">true</span>},
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.bsCustomers.<span class="f">SetDataSource</span>(&amp;customers)
+	mf.bsCustomers.PositionChanged.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) { mf.<span class="f">showPosition</span>() })
+	mf.bsCustomers.ListChanged.<span class="f">Handle</span>(<span class="k">func</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) { mf.<span class="f">showPosition</span>() })
+	mf.<span class="f">showPosition</span>()
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">showPosition</span>() {
+	mf.lblPosition.<span class="f">SetText</span>(fmt.<span class="f">Sprintf</span>(<span class="s">"%d / %d"</span>, mf.bsCustomers.<span class="f">Position</span>()+<span class="n">1</span>, mf.bsCustomers.<span class="f">Count</span>()))
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">gridCustomers_UserDeletingRow</span>(sender <span class="k">any</span>, e *goforms.GridRowCancelEventArgs) {
+	<span class="k">if</span> customers[e.Row].Credit &gt; <span class="n">0</span> {
+		e.Cancel = <span class="k">true</span> <span class="c">// должников не удаляем</span>
+	}
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnFirst_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) { mf.bsCustomers.<span class="f">MoveFirst</span>() }
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnPrev_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	mf.bsCustomers.<span class="f">MovePrevious</span>()
+}
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnNext_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) { mf.bsCustomers.<span class="f">MoveNext</span>() }
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnLast_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) { mf.bsCustomers.<span class="f">MoveLast</span>() }
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">mnuNew_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) { mf.bsCustomers.<span class="f">AddNew</span>() }
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">mnuDelete_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	mf.bsCustomers.<span class="f">RemoveAt</span>(mf.bsCustomers.<span class="f">Position</span>())
+}
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">mnuExportCsv_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {}
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">mnuRefresh_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>)   { mf.bsCustomers.<span class="f">ResetBindings</span>() }</pre>
+</figure>
+
+<figure class="shot">
+  <img src="../assets/app-tooltip.png" alt="Работающая форма, указатель над кнопкой >, показана подсказка Next customer." loading="lazy">
+  <figcaption>Подсказка, заданная в дизайнере, во время работы.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== -->
+<section id="traps">
+<h2>Подводные камни</h2>
+
+<h3>У привязанной сетки нет строки <code>*</code></h3>
+<p>Источнику отдали срез по значению. Передайте указатель: <code translate="no">SetDataSource(&amp;customers)</code>.</p>
+
+<h3>Колонка пустая</h3>
+<p>Её <code translate="no">DataPropertyName</code> не называет экспортируемого поля записи - проверьте написание и то, что поле начинается с заглавной буквы.</p>
+
+<h3>Изменения из кода не видны</h3>
+<p>Сетка показывает записи такими, какими они были при привязке. Изменив срез сами, вызовите <code translate="no">ResetBindings()</code> - как в WinForms.</p>
+
+<h3>Введённое число откатилось</h3>
+<p>Текст не преобразовался в тип поля - <code translate="no">"12,5"</code> в <code translate="no">float64</code>. Ячейка возвращается к значению записи.</p>
+
+<h3><code translate="no">SetCell</code> не вызвал событие</h3>
+<p>Так задумано: <code translate="no">CellValueChanged</code> - для правок пользователя, чтобы обработчик, пишущий ячейки, не вызывал сам себя.</p>
+
+<h3>Delete удалил символ, а не строку</h3>
+<p>Был открыт редактор. <kbd>Enter</kbd> закрывает его, и тогда <kbd>Delete</kbd> относится к строке.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>GoForms — под лицензией MIT.</span>
+    <nav>
+      <a href="index.html">Главная</a>
+      <a href="guide.html">Руководство</a>
+      <a href="datagridview.html">DataGridView</a>
+      <a href="https://github.com/Go-Forms/GoForms/tree/main/docs">Справочник</a>
+      <a href="https://github.com/Go-Forms">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// Highlights the section currently on screen in the sidebar. Progressive
+// enhancement: without it every link still works, the current one is just
+// not marked.
+(function () {
+	var links = Array.prototype.slice.call(document.querySelectorAll('.doc-nav a[href^="#"]'));
+	if (!links.length || !('IntersectionObserver' in window)) return;
+
+	var byId = {};
+	links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+
+	var visible = new Set();
+	var observer = new IntersectionObserver(function (entries) {
+		entries.forEach(function (entry) {
+			if (entry.isIntersecting) visible.add(entry.target.id);
+			else visible.delete(entry.target.id);
+		});
+		// The topmost visible section wins, so scrolling up and down both
+		// land on the heading actually being read.
+		var current = null;
+		Object.keys(byId).forEach(function (id) {
+			if (current === null && visible.has(id)) current = id;
+		});
+		links.forEach(function (a) {
+			a.classList.toggle('current', a.getAttribute('href') === '#' + current);
+		});
+	}, { rootMargin: '-70px 0px -70% 0px' });
+
+	Object.keys(byId).forEach(function (id) {
+		var section = document.getElementById(id);
+		if (section) observer.observe(section);
+	});
+})();
+</script>
+
+</body>
+</html>

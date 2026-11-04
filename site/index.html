@@ -25,6 +25,7 @@
     </a>
     <nav>
       <a href="#code">Code</a>
+      <a href="datagridview.html">DataGridView</a>
       <a href="#designer">Designer</a>
       <a href="#controls">Controls</a>
       <a href="#install">Install</a>
@@ -145,6 +146,54 @@
   </div>
 </section>
 
+<section id="grid">
+  <div class="wrap">
+    <h2>DataGridView, bound to your structs</h2>
+    <p>
+      A grid of columns - text, check boxes, buttons - each with its own width or
+      sizing mode, alignment and read-only flag, edited in place the way a
+      DataGridView is: click to select, click again or just type to edit. Bind it to
+      a <code translate="no">BindingSource</code> holding a slice of structs and every
+      row is a record, every column a field; text boxes, check boxes and number boxes
+      bound to the same source show the current record, and the user adds records in
+      the row marked <code>*</code> and deletes them with <kbd>Delete</kbd>.
+    </p>
+
+    <figure class="shot">
+      <img src="assets/app-dgv-bound.png" alt="A running GoForms form with a grid of customers on the left and the selected customer's details bound to text boxes, a number box and a check box on the right.">
+      <figcaption>A grid and a details panel bound to one slice of customers. The whole form - designer file and code - is on the <a href="datagridview.html#example">DataGridView page</a>.</figcaption>
+    </figure>
+
+    <div class="split">
+      <figure class="code">
+        <figcaption translate="no">MainForm-designer.go</figcaption>
+<pre translate="no">mf.bsCustomers = <span class="f">goforms.NewBindingSource</span>()
+
+mf.gridCustomers.<span class="f">SetDataSource</span>(mf.bsCustomers)
+mf.gridCustomers.<span class="f">SetAllowUserToAddRows</span>(<span class="k">true</span>)
+mf.gridCustomers.<span class="f">SetColumnDataPropertyName</span>(<span class="n">1</span>, <span class="s">"Name"</span>)
+mf.gridCustomers.<span class="f">SetColumnSizeMode</span>(<span class="n">1</span>, goforms.SizeFill)
+mf.gridCustomers.<span class="f">SetColumnAlign</span>(<span class="n">3</span>, goforms.AlignRight)
+
+mf.bsCustomers.<span class="f">Bind</span>(mf.txtName, <span class="s">"Text"</span>, <span class="s">"Name"</span>)</pre>
+      </figure>
+      <figure class="code">
+        <figcaption translate="no">MainForm.go</figcaption>
+<pre translate="no"><span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">MainForm_Load</span>(sender <span class="k">any</span>, e <span class="t">goforms.EventArgs</span>) {
+	<span class="c">// By pointer, so the * row can append to it.</span>
+	mf.bsCustomers.<span class="f">SetDataSource</span>(&amp;customers)
+}
+
+<span class="k">func</span> (mf *<span class="t">MainForm</span>) <span class="f">btnNext_Click</span>(sender <span class="k">any</span>, e <span class="t">goforms.MouseEventArgs</span>) {
+	mf.bsCustomers.<span class="f">MoveNext</span>()
+}</pre>
+      </figure>
+    </div>
+
+    <p><a href="datagridview.html">The DataGridView guide</a> covers columns, sizing, editing, the keys, binding, adding and deleting, and designing a grid column by column.</p>
+  </div>
+</section>
+
 <section id="designer">
   <div class="wrap">
     <h2>The designer</h2>
@@ -157,29 +206,51 @@
       second one.
     </p>
     <p>
-      Every edit ends with a cleanup pass that removes what the edit made redundant —
-      setters a later call overrides, repeated adds, duplicate field declarations — and
-      the file is written back gofmt-formatted, so a designer edit and a hand edit produce
-      the same file. Docked controls are drawn where they will really appear rather than
-      at their stored coordinates.
+      It works the way the Visual Studio designer does: a selection rectangle,
+      <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> for copy, paste and duplicate,
+      the arrow keys to nudge, a right-click menu with View Code, Bring to Front and Lock,
+      smart tags, a document outline, snapping to the neighbours, and a double-click that
+      wires a control's default event. Tables and flow panels lay their controls out on the
+      canvas exactly as they will run.
     </p>
     <p>
-      It also scaffolds projects (empty, example, browser or Android), opens a project's
-      theme as a visual editor, and builds and runs the project for the desktop, the
-      browser or a connected phone.
+      Menus are edited as a tree on the canvas's own menu bar; a <code translate="no">ToolTip</code>
+      adds a tip box to every control, a <code translate="no">BindingSource</code> a
+      <em>(DataBindings)</em> group; a picture is copied into the form's folder and embedded
+      with <code translate="no">go:embed</code>. A grid is designed column by column - click a
+      header on the canvas and the panel edits that column.
     </p>
+    <p>
+      Every edit ends with a cleanup pass, and the file is written back gofmt-formatted, so a
+      designer edit and a hand edit produce the same file. It also scaffolds projects and
+      forms (an empty form, a dialog, an about box, a login, a splash screen), opens a
+      project's theme as a visual editor, and builds and runs the project for the desktop,
+      the browser or a connected phone.
+    </p>
+
+    <figure class="shot">
+      <img src="assets/designer-dgv-column.png" alt="The designer with a grid's Credit column picked by its header on the canvas, and a Column group in the properties panel with HeaderText, ColumnType, DataPropertyName, Width, AutoSizeMode, Alignment, ReadOnly and Visible.">
+      <figcaption>A grid's column picked by its header: the panel edits its caption, type, field, width, size mode, alignment, read-only flag and visibility.</figcaption>
+    </figure>
+
+    <figure class="shot">
+      <img src="assets/designer-menu.png" alt="The designer with a MenuStrip selected: its items as a tree in the properties panel, each with a click handler box, nest and unnest buttons and a toggle to disable it; the form's menu bar drawn above the canvas.">
+      <figcaption>A menu strip's items, as a tree: a handler per item, nesting, separators, disabled items.</figcaption>
+    </figure>
 
     <figure class="shot">
       <img src="assets/designer-canvas.png" alt="VS Code with a GoForms form on the designer canvas, the selected control's properties and its events listed beside it.">
       <figcaption>The designer editing ControlsForm. The panel on the right is the selected control: its name, bounds, properties and every event it can raise.</figcaption>
     </figure>
+
+    <p>Every gesture, key and command is in <a href="guide.html#designer-basics">the guide</a>.</p>
   </div>
 </section>
 
 <section id="controls">
   <div class="wrap">
     <h2>Control catalogue</h2>
-    <p>Every type below is in the designer's toolbox and understood by the code generator.</p>
+    <p>Every type below is in the designer's toolbox and understood by the code generator. Components have no place on the form; they sit in the tray under the canvas.</p>
 
     <div class="catalog-group">
       <h3>Common controls</h3>
@@ -219,14 +290,23 @@
       </div>
     </div>
 
+    <div class="catalog-group">
+      <h3>Components</h3>
+      <div class="chips">
+        <span class="chip" translate="no">BindingSource</span><span class="chip" translate="no">ToolTip</span><span class="chip" translate="no">Timer</span>
+        <span class="chip" translate="no">OpenFileDialog</span><span class="chip" translate="no">SaveFileDialog</span>
+        <span class="chip" translate="no">FolderBrowserDialog</span><span class="chip" translate="no">ColorDialog</span>
+      </div>
+    </div>
+
     <figure class="shot">
       <img src="assets/form-controls.png" alt="A GoForms form with text boxes, combo boxes, check boxes, track bars and up-down controls.">
       <figcaption>Every input control, running.</figcaption>
     </figure>
 
     <figure class="shot">
-      <img src="assets/form-data.png" alt="A DataGridView with sortable columns beside a TreeView.">
-      <figcaption><code translate="no">DataGridView</code> with sortable, resizable columns, next to a <code translate="no">TreeView</code>.</figcaption>
+      <img src="assets/form-data.png" alt="An editable DataGridView with controls for its sizing modes, beside a ListView and a TreeView.">
+      <figcaption>An editable <code translate="no">DataGridView</code> with its sizing modes switched live, next to a <code translate="no">ListView</code> and a <code translate="no">TreeView</code>.</figcaption>
     </figure>
   </div>
 </section>
@@ -255,7 +335,7 @@ git clone git@github.com:Go-Forms/GoFormsShowcase.git
       <figure class="code">
         <figcaption>The designer</figcaption>
 <pre translate="no"><span class="c"># From the latest release:</span>
-code --install-extension goforms-designer-<span data-latest-version>0.10.2</span>.vsix
+code --install-extension goforms-designer-<span data-latest-version>0.13.0</span>.vsix
 
 <span class="c"># Then, in VS Code:</span>
 <span class="c">#   Ctrl+Shift+P -> "GoForms: Create New Project..."</span>
@@ -285,6 +365,7 @@ code --install-extension goforms-designer-<span data-latest-version>0.10.2</span
     <span>GoForms — MIT licensed.</span>
     <nav>
       <a href="guide.html">Guide</a>
+      <a href="datagridview.html">DataGridView</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/controls.md">Controls</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/layout.md">Layout</a>
       <a href="https://github.com/Go-Forms/GoForms/blob/main/docs/events.md">Events</a>
