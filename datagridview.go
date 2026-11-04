@@ -201,6 +201,33 @@ type DataGridView struct {
 	// column: it fires when one of that column's buttons is pressed, with the
 	// row and column the button belongs to.
 	CellButtonClick Event[GridCellEventArgs]
+	// UserAddedRow mirrors DataGridView.UserAddedRow: typing into the row for
+	// new records made it a row (see SetAllowUserToAddRows).
+	UserAddedRow Event[GridRowEventArgs]
+	// UserDeletingRow mirrors DataGridView.UserDeletingRow: the user pressed
+	// Delete on a row; set Cancel to keep it.
+	UserDeletingRow Event[*GridRowCancelEventArgs]
+	// UserDeletedRow mirrors DataGridView.UserDeletedRow.
+	UserDeletedRow Event[GridRowEventArgs]
+
+	allowAdd    bool
+	allowDelete bool
+	// adding is set while a new record is being added to the BindingSource,
+	// so the grid does not rebuild its rows from under the cell being typed.
+	adding bool
+}
+
+// GridRowEventArgs mirrors DataGridViewRowEventArgs: which row.
+type GridRowEventArgs struct {
+	EventArgs
+	Row int
+}
+
+// GridRowCancelEventArgs mirrors DataGridViewRowCancelEventArgs: a row about
+// to go, and the chance to keep it.
+type GridRowCancelEventArgs struct {
+	Row    int
+	Cancel bool
 }
 
 // NewDataGridView mirrors `new DataGridView()` with the given columns. Pass
@@ -239,11 +266,14 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 
 	g.rebuildShown()
 
-	w := widget.NewTable(
-		func() (int, int) { return len(g.rows), len(g.shown) },
-		func() fyne.CanvasObject { return newGridCell() },
-		func(id widget.TableCellID, obj fyne.CanvasObject) { g.updateCell(id, obj) },
-	)
+	// The table is the grid's own subtype of widget.Table, which is how it
+	// gets the Delete key (see gridTable).
+	t := &gridTable{grid: g}
+	t.Length = func() (int, int) { return g.drawnRows(), len(g.shown) }
+	t.CreateCell = func() fyne.CanvasObject { return newGridCell() }
+	t.UpdateCell = func(id widget.TableCellID, obj fyne.CanvasObject) { g.updateCell(id, obj) }
+	t.ExtendBaseWidget(t)
+	w := &t.Table
 	w.ShowHeaderRow = true
 	w.CreateHeader = func() fyne.CanvasObject {
 		l := widget.NewLabel("")
@@ -289,9 +319,134 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 	}
 
 	g.w = w
-	g.initBaseComposite(w, 400, 200)
+	g.initBaseComposite(t, 400, 200)
 	g.relayout()
 	return g
+}
+
+// gridTable is the grid's widget.Table, with one key of its own: Delete
+// deletes the selected row, when the grid allows it, as a DataGridView does.
+// Every other key is the table's.
+type gridTable struct {
+	widget.Table
+	grid *DataGridView
+}
+
+func (t *gridTable) TypedKey(e *fyne.KeyEvent) {
+	if e.Name == fyne.KeyDelete && t.grid.deleteSelectedRow() {
+		return
+	}
+	t.Table.TypedKey(e)
+}
+
+// drawnRows is how many rows the table shows: the grid's, and the row for
+// new records below them when there is one.
+func (g *DataGridView) drawnRows() int {
+	if g.newRowShown() {
+		return len(g.rows) + 1
+	}
+	return len(g.rows)
+}
+
+// newRowShown reports whether the row for new records is drawn: the grid
+// allows it, it can be edited, and - for a bound grid - its BindingSource can
+// add records (it holds a pointer to its slice).
+func (g *DataGridView) newRowShown() bool {
+	return g.allowAdd && !g.readOnly && (g.source == nil || g.source.AllowNew())
+}
+
+// isNewRow reports whether row is the row for new records.
+func (g *DataGridView) isNewRow(row int) bool {
+	return g.newRowShown() && row == len(g.rows)
+}
+
+// SetAllowUserToAddRows mirrors DataGridView.AllowUserToAddRows: an empty
+// row below the others, which becomes a row - a new record, on a bound
+// grid - as soon as something is typed into it. Off by default, unlike
+// WinForms, so grids built before it existed do not grow a row.
+func (g *DataGridView) SetAllowUserToAddRows(on bool) {
+	g.allowAdd = on
+	g.relayout()
+	g.w.Refresh()
+}
+
+// AllowUserToAddRows mirrors DataGridView.AllowUserToAddRows.
+func (g *DataGridView) AllowUserToAddRows() bool { return g.allowAdd }
+
+// SetAllowUserToDeleteRows mirrors DataGridView.AllowUserToDeleteRows: the
+// Delete key deletes the selected row (raising UserDeletingRow first, which
+// can keep it). Off by default.
+func (g *DataGridView) SetAllowUserToDeleteRows(on bool) { g.allowDelete = on }
+
+// AllowUserToDeleteRows mirrors DataGridView.AllowUserToDeleteRows.
+func (g *DataGridView) AllowUserToDeleteRows() bool { return g.allowDelete }
+
+// addNewRow turns the row for new records into a row, adding a record to the
+// BindingSource first when the grid is bound. It reports whether it could.
+func (g *DataGridView) addNewRow() bool {
+	if g.source != nil {
+		g.adding = true
+		_, err := g.source.AddNew()
+		g.adding = false
+		if err != nil {
+			return false
+		}
+	}
+	g.rows = append(g.rows, make([]string, len(g.columns)))
+	row := len(g.rows) - 1
+	g.UserAddedRow.Fire(g, GridRowEventArgs{Row: row})
+	g.RowsChanged.Fire(g, EventArgs{})
+	return true
+}
+
+// deleteSelectedRow is what Delete does: it reports whether it handled the
+// key, so the table's own key handling is left alone otherwise.
+func (g *DataGridView) deleteSelectedRow() bool {
+	row := g.selectedRow
+	if !g.allowDelete || g.readOnly || g.editingRow >= 0 || row < 0 || row >= len(g.rows) {
+		return false
+	}
+	args := &GridRowCancelEventArgs{Row: row}
+	g.UserDeletingRow.Fire(g, args)
+	if args.Cancel {
+		return true
+	}
+	if g.source != nil {
+		g.adding = true
+		err := g.source.RemoveAt(row)
+		g.adding = false
+		if err != nil {
+			return true
+		}
+	}
+	g.rows = append(g.rows[:row], g.rows[row+1:]...)
+	g.selectedRow, g.selectedCol = -1, -1
+	g.editingRow, g.editingCol = -1, -1
+	g.refreshAll()
+	g.w.UnselectAll()
+	g.UserDeletedRow.Fire(g, GridRowEventArgs{Row: row})
+	g.RowsChanged.Fire(g, EventArgs{})
+	return true
+}
+
+// SetColumnReadOnly mirrors DataGridViewColumn.ReadOnly.
+func (g *DataGridView) SetColumnReadOnly(col int, on bool) {
+	if c := g.Column(col); c != nil {
+		c.ReadOnly = on
+		if on && g.editingCol == col {
+			g.editingRow, g.editingCol = -1, -1
+		}
+		g.w.Refresh()
+	}
+}
+
+// SetColumnAlign mirrors DataGridViewColumn.DefaultCellStyle.Alignment:
+// where the column's text sits, header included.
+func (g *DataGridView) SetColumnAlign(col int, a TextAlign) {
+	if c := g.Column(col); c != nil {
+		c.Align = a
+		g.w.Refresh()
+	}
 }
 
 // --- hidden columns -----------------------------------------------------
@@ -407,6 +562,12 @@ func (g *DataGridView) updateCell(id widget.TableCellID, obj fyne.CanvasObject) 
 	if column != nil {
 		switch column.Kind {
 		case GridColumnButton:
+			if g.isNewRow(row) {
+				// A row that is not a row yet has nothing to act on.
+				c.label.SetText("")
+				c.showOnly(c.label)
+				return
+			}
 			caption := column.ButtonText
 			if caption == "" {
 				caption = text
@@ -442,12 +603,20 @@ func (g *DataGridView) updateCell(id widget.TableCellID, obj fyne.CanvasObject) 
 				if old == next {
 					return
 				}
+				newRow := g.isNewRow(row)
+				if newRow && !g.addNewRow() {
+					return
+				}
 				g.setCellQuiet(row, col, next)
 				g.CellValueChanged.Fire(g, GridCellValueEventArgs{
 					GridCellEventArgs: GridCellEventArgs{Row: row, Col: col},
 					OldValue:          old,
 					NewValue:          next,
 				})
+				if newRow {
+					g.refreshAll()
+					g.w.Refresh()
+				}
 			}
 			c.showOnly(c.check)
 			return
@@ -464,17 +633,31 @@ func (g *DataGridView) updateCell(id widget.TableCellID, obj fyne.CanvasObject) 
 			if old == s {
 				return
 			}
+			// Typing into the row for new records makes it a row; the next
+			// one appears below it.
+			newRow := g.isNewRow(row)
+			if newRow && !g.addNewRow() {
+				return
+			}
 			g.setCellQuiet(row, col, s)
 			g.CellValueChanged.Fire(g, GridCellValueEventArgs{
 				GridCellEventArgs: GridCellEventArgs{Row: row, Col: col},
 				OldValue:          old,
 				NewValue:          s,
 			})
+			if newRow {
+				g.refreshAll()
+				g.w.Refresh()
+			}
 		}
 		c.showOnly(c.entry)
 		return
 	}
 
+	if g.isNewRow(row) && text == "" && id.Col == 0 {
+		// The row for new records, marked as WinForms marks it.
+		text = "*"
+	}
 	c.label.SetText(text)
 	if column != nil {
 		c.label.Alignment = column.Align.toFyne()
@@ -1049,6 +1232,10 @@ func (g *DataGridView) layoutRows() {
 		}
 		g.w.SetRowHeight(r, h)
 		total += h
+	}
+	if g.newRowShown() {
+		g.w.SetRowHeight(len(g.rows), g.rowHeight)
+		total += g.rowHeight
 	}
 
 	// Vertical scrolling off means the grid must be tall enough to show

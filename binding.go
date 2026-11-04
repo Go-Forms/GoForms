@@ -130,6 +130,65 @@ func (b *BindingSource) MovePrevious() { b.SetPosition(b.position - 1) }
 func (b *BindingSource) MoveNext()     { b.SetPosition(b.position + 1) }
 func (b *BindingSource) MoveLast()     { b.SetPosition(b.Count() - 1) }
 
+// listPtr is the slice the source can add to and remove from: the one a
+// pointer passed to SetDataSource points at.
+func (b *BindingSource) listPtr() (reflect.Value, bool) {
+	v := reflect.ValueOf(b.source)
+	if v.Kind() != reflect.Pointer || v.IsNil() || v.Elem().Kind() != reflect.Slice {
+		return reflect.Value{}, false
+	}
+	return v.Elem(), true
+}
+
+// AllowNew mirrors BindingSource.AllowNew: records can be added and removed,
+// which needs the source to hold the slice by pointer -
+// SetDataSource(&customers) - so the slice it grows is the caller's.
+func (b *BindingSource) AllowNew() bool {
+	_, ok := b.listPtr()
+	return ok
+}
+
+// AddNew mirrors BindingSource.AddNew: it appends a zero record (a new one,
+// for a slice of pointers), makes it current and returns it.
+func (b *BindingSource) AddNew() (any, error) {
+	list, ok := b.listPtr()
+	if !ok {
+		return nil, fmt.Errorf("records can only be added to a slice passed by pointer: SetDataSource(&list)")
+	}
+	elem := list.Type().Elem()
+	var rec reflect.Value
+	if elem.Kind() == reflect.Pointer {
+		rec = reflect.New(elem.Elem())
+	} else {
+		rec = reflect.Zero(elem)
+	}
+	list.Set(reflect.Append(list, rec))
+	b.position = list.Len() - 1
+	b.ListChanged.Fire(b, EventArgs{})
+	b.pushAll()
+	b.PositionChanged.Fire(b, EventArgs{})
+	return list.Index(list.Len() - 1).Interface(), nil
+}
+
+// RemoveAt mirrors BindingSource.RemoveAt.
+func (b *BindingSource) RemoveAt(i int) error {
+	list, ok := b.listPtr()
+	if !ok {
+		return fmt.Errorf("records can only be removed from a slice passed by pointer: SetDataSource(&list)")
+	}
+	if i < 0 || i >= list.Len() {
+		return fmt.Errorf("no record %d", i)
+	}
+	list.Set(reflect.AppendSlice(list.Slice(0, i), list.Slice(i+1, list.Len())))
+	if b.position >= list.Len() {
+		b.position = list.Len() - 1
+	}
+	b.ListChanged.Fire(b, EventArgs{})
+	b.pushAll()
+	b.PositionChanged.Fire(b, EventArgs{})
+	return nil
+}
+
 // ResetBindings mirrors BindingSource.ResetBindings: the list changed in
 // code (a record appended, a field edited), so everything bound to it is
 // redrawn from the records.
@@ -343,12 +402,14 @@ func (g *DataGridView) SetDataSource(b *BindingSource) {
 		return
 	}
 	b.ListChanged.Handle(func(any, EventArgs) {
-		if g.source == b {
+		// While the grid itself adds or removes a record it changes its own
+		// rows to match, keeping the cell being typed in.
+		if g.source == b && !g.adding {
 			g.fillFrom(b)
 		}
 	})
 	b.PositionChanged.Handle(func(any, EventArgs) {
-		if g.source == b && b.Position() >= 0 && b.Position() != g.selectedRow {
+		if g.source == b && !g.adding && b.Position() >= 0 && b.Position() != g.selectedRow {
 			col := g.selectedCol
 			if col < 0 {
 				col = g.firstShownColumn()

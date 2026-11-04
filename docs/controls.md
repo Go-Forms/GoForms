@@ -144,6 +144,15 @@ caption, so one column can say "Approve" on one row and "Revoke" on the next.
 `GridColumnCheckBox` stores `"true"`/`"false"` and reports toggles through
 `CellValueChanged`, like any other edit.
 
+Each column has its own width, sizing, alignment and editability:
+
+```go
+grid.SetColumnWidth(0, 60)                           // pixels, and SizeFixed
+grid.SetColumnSizeMode(1, goforms.SizeFill)          // or SizeToContent
+grid.SetColumnAlign(2, goforms.AlignRight)           // the header too
+grid.SetColumnReadOnly(0, true)                      // the rest stay editable
+```
+
 Hiding a column never renumbers anything: `Cell`, `CellByName`, `AddRow` and
 every event argument keep speaking in column indices, so a hidden id column is
 read exactly as if it were on screen. `VisibleColumns()` reports what is
@@ -183,6 +192,20 @@ field back into the record, converted to its type; a cell whose text does not
 convert is put back. Fields are reached by name, so only exported ones can be
 shown. A change made to the slice in code shows after `ResetBindings()` (or
 `SetDataSource` with the new slice), as in WinForms.
+
+A grid can also let the user add and delete records:
+
+```go
+mf.grdCustomers.SetAllowUserToAddRows(true)     // an empty row below the others
+mf.grdCustomers.SetAllowUserToDeleteRows(true)  // Delete removes the selected row
+mf.bsCustomers.SetDataSource(&customers)        // by pointer, so the slice can grow
+```
+
+Typing into the row for new records (marked `*`) makes it a row - a new record
+appended to the slice - and raises `UserAddedRow`. Delete raises
+`UserDeletingRow`, whose `Cancel` keeps the row, then `UserDeletedRow`. A
+source given its slice by value cannot grow, so a grid bound to one shows no row
+for new records; an unbound grid adds and deletes plain rows.
 
 `Bind` takes `Text` (TextBox, MaskedTextBox, RichTextBox, Label, LinkLabel),
 `Checked` (CheckBox, RadioButton) and `Value` (NumericUpDown, TrackBar). A grid
