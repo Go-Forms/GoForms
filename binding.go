@@ -418,7 +418,10 @@ func (g *DataGridView) SetDataSource(b *BindingSource) {
 		}
 	})
 	g.SelectionChanged.Handle(func(_ any, e GridCellEventArgs) {
-		if g.source == b && e.Row >= 0 {
+		// The row for new records is no record yet: selecting it leaves the
+		// position where it was, or the grid would be sent back to the last
+		// record and what is typed next would go there.
+		if g.source == b && e.Row >= 0 && e.Row < b.Count() {
 			b.SetPosition(e.Row)
 		}
 	})

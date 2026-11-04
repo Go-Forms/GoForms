@@ -248,6 +248,29 @@ func TestTheNewRowAddsARecord(t *testing.T) {
 	if g.Cell(2, 0) != "Initech" {
 		t.Errorf("cell %q", g.Cell(2, 0))
 	}
+	// The cells not typed into show the new record's own values.
+	if g.Cell(2, 1) != "0" {
+		t.Errorf("the new record's Credit cell is %q, want its zero value", g.Cell(2, 1))
+	}
+}
+
+// TestSelectingTheNewRowKeepsThePosition: the row for new records is not a
+// record, so selecting it must not move the source - clamped to the last
+// record, the position used to drag the selection back up there, and what
+// was typed next overwrote that record.
+func TestSelectingTheNewRowKeepsThePosition(t *testing.T) {
+	test.NewApp()
+	list := bindCustomers()
+	b := NewBindingSource()
+	b.SetDataSource(&list)
+	g := NewDataGridView("Name")
+	g.SetDataSource(b)
+	g.SetAllowUserToAddRows(true)
+	g.SelectCell(0, 0)
+	g.SelectCell(len(list), 0)
+	if g.selectedRow != len(list) || b.Position() != 0 {
+		t.Fatalf("selected row %d, position %d", g.selectedRow, b.Position())
+	}
 }
 
 func TestDeleteRemovesTheSelectedRecord(t *testing.T) {

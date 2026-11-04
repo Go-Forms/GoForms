@@ -153,6 +153,12 @@ grid.SetColumnAlign(2, goforms.AlignRight)           // the header too
 grid.SetColumnReadOnly(0, true)                      // the rest stay editable
 ```
 
+Editing is the DataGridView gesture: a click selects a cell, a second click on
+it opens its editor, and typing on a selected cell opens the editor with what
+was typed in place of the text. Enter or Escape closes it; an edit is applied
+as it is typed. While an editor is open, Delete and the arrows work on its
+text.
+
 Hiding a column never renumbers anything: `Cell`, `CellByName`, `AddRow` and
 every event argument keep speaking in column indices, so a hidden id column is
 read exactly as if it were on screen. `VisibleColumns()` reports what is

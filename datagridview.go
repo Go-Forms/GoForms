@@ -157,7 +157,8 @@ type GridCellValueEventArgs struct {
 // list, DataGridView is an editable spreadsheet-like grid.
 type DataGridView struct {
 	ControlBase
-	w *widget.Table
+	w     *widget.Table
+	table *gridTable // w's outer widget, which takes the keys
 
 	// source is the BindingSource the rows come from, if any.
 	source *BindingSource
@@ -186,6 +187,17 @@ type DataGridView struct {
 	editingCol   int
 	autoHeight   float32 // height the grid grew to when vertical scrolling is off; 0 = not grown
 	suppressFire bool    // set while relayout rewrites cells, so edits don't re-fire
+
+	// selectSeq counts the table's OnSelected calls, so a tap can tell
+	// whether it selected anything; retapping is set while a tap forgets
+	// and re-makes the selection (see gridTable.Tapped).
+	selectSeq int
+	retapping bool
+	// editor is the entry of the cell being edited, as last drawn. Keys
+	// reach the table rather than the entry when the control's overlay
+	// holds the focus, and the table hands them on (see gridTable).
+	editor               *widget.Entry
+	editorRow, editorCol int
 
 	// CellClick mirrors DataGridView.CellClick.
 	CellClick Event[GridCellEventArgs]
@@ -273,6 +285,7 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 	t.CreateCell = func() fyne.CanvasObject { return newGridCell() }
 	t.UpdateCell = func(id widget.TableCellID, obj fyne.CanvasObject) { g.updateCell(id, obj) }
 	t.ExtendBaseWidget(t)
+	g.table = t
 	w := &t.Table
 	w.ShowHeaderRow = true
 	w.CreateHeader = func() fyne.CanvasObject {
@@ -291,9 +304,14 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 		}
 	}
 	w.OnSelected = func(id widget.TableCellID) {
+		g.selectSeq++
 		col := g.modelCol(id.Col)
 		changed := g.selectedRow != id.Row || g.selectedCol != col
 		g.selectedRow, g.selectedCol = id.Row, col
+		if g.retapping && !changed {
+			// Putting back the selection a tap on no cell took away.
+			return
+		}
 
 		// Mirror DataGridView's click-to-select, click-again-to-edit: the
 		// first tap only selects, a second tap on the already-selected cell
@@ -312,6 +330,9 @@ func NewDataGridViewColumns(columns []*GridColumn) *DataGridView {
 		g.w.Refresh()
 	}
 	w.OnUnselected = func(widget.TableCellID) {
+		if g.retapping {
+			return
+		}
 		g.selectedRow, g.selectedCol = -1, -1
 		g.editingRow, g.editingCol = -1, -1
 		g.SelectionChanged.Fire(g, GridCellEventArgs{Row: -1, Col: -1})
@@ -332,11 +353,86 @@ type gridTable struct {
 	grid *DataGridView
 }
 
+// Tapped makes the second click on a cell reach OnSelected. Fyne's Table
+// ignores a tap on the cell already selected, and for a DataGridView that
+// tap is the one that opens the cell's editor - without this a cell could
+// only be edited from code. The selection is forgotten quietly first, so
+// the tap selects afresh and OnSelected sees it unchanged; a tap that lands
+// on no cell (a gap, the area below the last row) puts it back as it was.
+func (t *gridTable) Tapped(e *fyne.PointEvent) {
+	g := t.grid
+	if g.selectedRow < 0 {
+		t.Table.Tapped(e)
+		return
+	}
+	row, col, seq := g.selectedRow, g.selectedCol, g.selectSeq
+	g.retapping = true
+	t.Table.UnselectAll()
+	g.retapping = false
+	t.Table.Tapped(e)
+	if g.selectSeq == seq {
+		if drawn := g.drawnCol(col); drawn >= 0 {
+			g.retapping = true
+			t.Table.Select(widget.TableCellID{Row: row, Col: drawn})
+			g.retapping = false
+		}
+	}
+}
+
+// TypedRune types into the cell being edited. On a selected cell that is
+// not being edited, a character starts the edit and replaces the cell's
+// text, as typing over a cell does in a DataGridView.
+func (t *gridTable) TypedRune(r rune) {
+	g := t.grid
+	if e := g.openEditor(); e != nil {
+		e.TypedRune(r)
+		return
+	}
+	if g.selectedRow < 0 || !g.cellEditable(g.selectedRow, g.selectedCol) {
+		t.Table.TypedRune(r)
+		return
+	}
+	g.BeginEdit(g.selectedRow, g.selectedCol)
+	if e := g.openEditor(); e != nil {
+		e.SetText(string(r))
+		e.CursorColumn = len([]rune(e.Text))
+		e.Refresh()
+	}
+}
+
+// TypedKey edits in the open editor - Delete and the arrows move through
+// its text, Escape and Enter close it - and otherwise is the table's, with
+// Delete deleting the selected row when the grid allows it.
 func (t *gridTable) TypedKey(e *fyne.KeyEvent) {
-	if e.Name == fyne.KeyDelete && t.grid.deleteSelectedRow() {
+	g := t.grid
+	if ed := g.openEditor(); ed != nil {
+		switch e.Name {
+		case fyne.KeyEscape, fyne.KeyReturn, fyne.KeyEnter:
+			g.EndEdit()
+		default:
+			ed.TypedKey(e)
+		}
+		return
+	}
+	if e.Name == fyne.KeyDelete && g.deleteSelectedRow() {
 		return
 	}
 	t.Table.TypedKey(e)
+}
+
+// TypedShortcut hands copy, paste and select-all to the open editor.
+func (t *gridTable) TypedShortcut(s fyne.Shortcut) {
+	if ed := t.grid.openEditor(); ed != nil {
+		ed.TypedShortcut(s)
+	}
+}
+
+// openEditor is the entry of the cell being edited, or nil.
+func (g *DataGridView) openEditor() *widget.Entry {
+	if g.editingRow < 0 || g.editor == nil || g.editorRow != g.editingRow || g.editorCol != g.editingCol {
+		return nil
+	}
+	return g.editor
 }
 
 // drawnRows is how many rows the table shows: the grid's, and the row for
@@ -392,7 +488,17 @@ func (g *DataGridView) addNewRow() bool {
 			return false
 		}
 	}
-	g.rows = append(g.rows, make([]string, len(g.columns)))
+	cells := make([]string, len(g.columns))
+	if g.source != nil {
+		// The new record's zero values, in the columns not being typed into.
+		i := g.source.Count() - 1
+		for c := range g.columns {
+			if m := g.memberOf(c); m != "" {
+				cells[c] = g.source.Field(i, m)
+			}
+		}
+	}
+	g.rows = append(g.rows, cells)
 	row := len(g.rows) - 1
 	g.UserAddedRow.Fire(g, GridRowEventArgs{Row: row})
 	g.RowsChanged.Fire(g, EventArgs{})
@@ -651,7 +757,22 @@ func (g *DataGridView) updateCell(id widget.TableCellID, obj fyne.CanvasObject) 
 			}
 		}
 		c.showOnly(c.entry)
+		// The keyboard stays with the table, which hands keys to this entry
+		// (see gridTable); the entry is only told it has the focus, so it
+		// draws its caret.
+		if g.editor != c.entry {
+			if g.editor != nil {
+				g.editor.FocusLost()
+			}
+			c.entry.FocusGained()
+		}
+		g.editor, g.editorRow, g.editorCol = c.entry, row, col
 		return
+	}
+	if c.entry == g.editor {
+		// The editor this entry was has closed.
+		g.editor = nil
+		c.entry.FocusLost()
 	}
 
 	if g.isNewRow(row) && text == "" && id.Col == 0 {

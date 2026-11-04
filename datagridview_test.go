@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -363,5 +364,88 @@ func TestVerticalScrollReservesScrollBarWidth(t *testing.T) {
 
 	if w := g.computeWidths()[0]; !approx(w, 400-theme.ScrollBarSize()) {
 		t.Fatalf("fill width should reserve the scrollbar, got %v", w)
+	}
+}
+
+// TestSecondClickOnACellOpensItsEditor is the gesture as the user makes it:
+// two taps on one cell. Fyne's Table drops a tap on the cell already
+// selected, so the second tap used to do nothing and a cell could only be
+// edited from code. The keyboard stays with the grid, so what is typed
+// next goes into the cell - for the row for new records, a new record -
+// spaces and all.
+func TestSecondClickOnACellOpensItsEditor(t *testing.T) {
+	g := newTestGrid(t, []*GridColumn{{Title: "Name"}, {Title: "City"}})
+	g.AddRow("Alfreds", "Berlin")
+	g.SetAllowUserToAddRows(true)
+	win := hostAt(t, g, 0, 0, 300, 200)
+	at := func(row int) fyne.Position {
+		return fyne.NewPos(20, headerRowHeight()+theme.Padding()+float32(row)*30+15)
+	}
+
+	test.TapCanvas(win.Canvas(), at(0))
+	if g.selectedRow != 0 || g.editingRow != -1 {
+		t.Fatalf("the first click selects only: selected %d, editing %d", g.selectedRow, g.editingRow)
+	}
+	test.TapCanvas(win.Canvas(), at(0))
+	if g.editingRow != 0 || g.editingCol != 0 {
+		t.Fatalf("the second click should open the editor, editing (%d,%d)", g.editingRow, g.editingCol)
+	}
+
+	// The row for new records: select it, click again, type.
+	test.TapCanvas(win.Canvas(), at(1))
+	test.TapCanvas(win.Canvas(), at(1))
+	if g.editingRow != 1 {
+		t.Fatalf("the row for new records should open its editor, editing %d", g.editingRow)
+	}
+	focused := win.Canvas().Focused()
+	if focused == nil {
+		t.Fatal("the grid should have the keyboard after a click")
+	}
+	test.Type(focused, "Bólido Comidas")
+	if rows := g.Rows(); len(rows) != 2 || rows[1][0] != "Bólido Comidas" {
+		t.Fatalf("typing into the row for new records should add a row, got %v", rows)
+	}
+}
+
+// TestKeysReachTheCellEditorThroughTheTable covers the focus as a running
+// application has it: the control's overlay holds the keyboard and hands
+// keys to the table, not to the entry drawn in the cell. The table passes
+// them on to the open editor - and, on a selected cell with none open, a
+// character starts the edit, replacing the text, as in a DataGridView.
+func TestKeysReachTheCellEditorThroughTheTable(t *testing.T) {
+	g := newTestGrid(t, []*GridColumn{{Title: "Name"}, {Title: "City"}})
+	g.AddRow("Alfreds", "Berlin")
+	g.SetAllowUserToAddRows(true)
+	g.SetAllowUserToDeleteRows(true)
+	hostAt(t, g, 0, 0, 300, 200)
+	table := g.table
+
+	g.SelectCell(0, 1)
+	table.TypedRune('M')
+	table.TypedRune('a')
+	if g.editingRow != 0 || g.editingCol != 1 {
+		t.Fatalf("typing on a selected cell should open its editor, editing (%d,%d)", g.editingRow, g.editingCol)
+	}
+	if got := g.Rows()[0][1]; got != "Ma" {
+		t.Fatalf("typing over a cell should replace its text, got %q", got)
+	}
+	// Delete while editing edits the text; it must not delete the row.
+	table.TypedKey(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	table.TypedKey(&fyne.KeyEvent{Name: fyne.KeyDelete})
+	if rows := g.Rows(); len(rows) != 1 || rows[0][1] != "M" {
+		t.Fatalf("Delete in an editor deletes a character, got %v", rows)
+	}
+	table.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	if g.editingRow != -1 {
+		t.Fatalf("Enter should close the editor, editing %d", g.editingRow)
+	}
+
+	// The row for new records, from the keyboard alone.
+	g.SelectCell(1, 0)
+	for _, r := range "Chop-suey" {
+		table.TypedRune(r)
+	}
+	if rows := g.Rows(); len(rows) != 2 || rows[1][0] != "Chop-suey" {
+		t.Fatalf("typing into the row for new records should add a row, got %v", rows)
 	}
 }
