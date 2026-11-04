@@ -50,12 +50,13 @@ WinForms - not to the form and not to the screen. `Clicks` is 1 for a click and
 | `TreeView` | `NodeSelected` |
 | `LinkLabel` | `LinkClicked` |
 | `ColorPickerButton` | `ColorChanged` |
-| `DataGridView` | `CellClick`, `SelectionChanged`, `CellValueChanged`, `RowsChanged` |
+| `DataGridView` | `CellClick`, `SelectionChanged`, `CellValueChanged`, `RowsChanged`, `CellButtonClick`, `UserAddedRow`, `UserDeletingRow`, `UserDeletedRow` |
 
 ## Form lifecycle
 
 ```go
 mf.Load.Handle(mf.MainForm_Load)         // after construction, before showing
+mf.Shown.Handle(mf.MainForm_Shown)       // once, the first time it is on screen
 mf.Closing.Handle(mf.MainForm_Closing)   // *CancelEventArgs - set Cancel to veto
 mf.Closed.Handle(mf.MainForm_Closed)
 mf.Resize.Handle(mf.MainForm_Resize)

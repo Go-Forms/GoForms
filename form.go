@@ -40,6 +40,7 @@ type Form struct {
 	result   DialogResult
 	padding  Padding
 	loaded   bool
+	shown    bool
 
 	// design is the client size the form was built for - the one its
 	// anchors are measured against, and the one a window too small for it
@@ -53,7 +54,10 @@ type Form struct {
 	// top-left corner of its client area. See menuInset.
 	hasMainMenu bool
 
-	Load    Event[EventArgs]
+	Load Event[EventArgs]
+	// Shown mirrors Form.Shown: raised once, after Load, the first time the
+	// form is put on screen.
+	Shown   Event[EventArgs]
 	Closing Event[*CancelEventArgs] // *CancelEventArgs: Cancel must be visible back to the caller, unlike other events
 	Closed  Event[EventArgs]
 	Resize  Event[EventArgs]
@@ -337,6 +341,17 @@ func (f *Form) SetMainMenu(m *MenuStrip) {
 func (f *Form) Show() {
 	f.raiseLoad()
 	f.window.Show()
+	f.raiseShown()
+}
+
+// raiseShown fires Shown the first time the form is on screen, as WinForms
+// does - once, however often it is hidden and shown again.
+func (f *Form) raiseShown() {
+	if f.shown {
+		return
+	}
+	f.shown = true
+	f.Shown.Fire(f, EventArgs{})
 }
 
 // raiseLoad fires Load the first time a form is displayed, mirroring
@@ -424,6 +439,7 @@ func (f *Form) ShowDialog() DialogResult {
 		f.raiseLoad()
 		f.window.CenterOnScreen()
 		f.window.Show()
+		f.raiseShown()
 	})
 	<-done
 	return f.result

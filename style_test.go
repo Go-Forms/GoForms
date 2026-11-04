@@ -3,6 +3,7 @@ package goforms
 import (
 	"image"
 	"image/color"
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -263,5 +264,23 @@ func TestFormLoadFiresOnceOnFirstShow(t *testing.T) {
 	f.raiseLoad()
 	if fired != 1 {
 		t.Fatalf("Load should fire only once, got %d", fired)
+	}
+}
+
+// TestFormShownFollowsLoadOnce: Shown comes after Load, the first time the
+// form is on screen, and not again when it is hidden and shown.
+func TestFormShownFollowsLoadOnce(t *testing.T) {
+	test.NewApp()
+
+	f := NewForm("f", 200, 100)
+	var log []string
+	f.Load.Handle(func(any, EventArgs) { log = append(log, "load") })
+	f.Shown.Handle(func(any, EventArgs) { log = append(log, "shown") })
+
+	f.Show()
+	f.Hide()
+	f.Show()
+	if strings.Join(log, ",") != "load,shown" {
+		t.Fatalf("events %v, want Load then Shown, once each", log)
 	}
 }

@@ -44,16 +44,22 @@ func TestHostedShowDialogReturnsWhenClosed(t *testing.T) {
 	closed := 0
 	dlg.Closed.Handle(func(any, EventArgs) { closed++ })
 
+	// Shown is raised on the side that shows the dialog, after it is up;
+	// waiting for it, rather than polling the frame, is what orders this
+	// goroutine's reads after that side's writes.
+	shown := make(chan struct{})
+	dlg.Shown.Handle(func(any, EventArgs) { close(shown) })
+
 	result := make(chan DialogResult, 1)
 	go func() { result <- dlg.ShowDialog() }()
 
-	// Wait for the dialog to be shown from the UI side.
-	deadline := time.Now().Add(2 * time.Second)
-	for !iw.visible && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
+	select {
+	case <-shown:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ShowDialog never showed the frame")
 	}
 	if !iw.visible {
-		t.Fatal("ShowDialog never showed the frame")
+		t.Fatal("ShowDialog raised Shown with the frame hidden")
 	}
 	if !iw.modal {
 		t.Error("ShowDialog did not mark the frame modal")

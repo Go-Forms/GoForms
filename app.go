@@ -93,6 +93,11 @@ func Run(mainForm *Form) {
 	// raiseLoad rather than firing directly, so a form that was already
 	// shown once doesn't get a second Load here.
 	mainForm.raiseLoad()
+	// The window is only on screen once the loop runs, so the main form's
+	// Shown comes from the app's started hook, which Run therefore takes.
+	if current != nil {
+		current.fyneApp.Lifecycle().SetOnStarted(mainForm.raiseShown)
+	}
 	mainForm.window.ShowAndRun()
 }
 
