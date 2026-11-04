@@ -28,7 +28,7 @@ described in [events.md](events.md).
 | `ScrollBar` | HScrollBar / VScrollBar | `NewHScrollBar(min, max)`, `NewVScrollBar(min, max)` |
 | `DateTimePicker` | DateTimePicker | `NewDateTimePicker(time.Now())` |
 | `MonthCalendar` | MonthCalendar | `NewMonthCalendar(time.Now())` |
-| `PictureBox` | PictureBox | `NewPictureBox(w, h)` |
+| `PictureBox` | PictureBox | `NewPictureBox(w, h)`; `LoadFile(path)`, or `LoadBytes(name, data)` for an image embedded with `go:embed` |
 | `LinkLabel` | LinkLabel | `NewLinkLabel(text)`, `NewLinkLabelWithURL(text, url)` |
 | `ColorPickerButton` | ColorDialog + Button | `NewColorPickerButton(text, form)` |
 
@@ -73,6 +73,29 @@ mf.AddControl(ts)
 
 A `ToolStrip` grows to fit its buttons but never shrinks below a width you set
 yourself, so an explicit `SetBounds` (or a dock) is respected.
+
+A menu is a tree of `MenuItem`s. `OnClick` and `Add` return the item, so the
+whole menu reads as one expression - the shape the designer writes:
+
+```go
+mf.menuStrip1 = goforms.NewMenuStrip(
+    goforms.NewTopMenu("File",
+        goforms.NewMenuItem("Open...").OnClick(mf.mnuOpen_Click),
+        goforms.NewMenuItem("Recent").Add(
+            goforms.NewMenuItem("report.txt").OnClick(mf.mnuRecent_Click),
+        ),
+        goforms.NewMenuSeparator(),
+        goforms.NewMenuItem("Exit").OnClick(mf.mnuExit_Click),
+    ),
+)
+mf.SetMainMenu(mf.menuStrip1)
+
+mf.cmsGrid = goforms.NewContextMenu(
+    goforms.NewMenuItem("Copy").OnClick(mf.mnuCopy_Click),
+    goforms.NewMenuItem("Delete").SetEnabled(false),
+)
+mf.grid.SetContextMenu(mf.cmsGrid)
+```
 
 ## Data
 
@@ -126,12 +149,53 @@ every event argument keep speaking in column indices, so a hidden id column is
 read exactly as if it were on screen. `VisibleColumns()` reports what is
 actually drawn, in order.
 
+### Data binding
+
+`BindingSource` mirrors its WinForms namesake: it holds a list of records - a
+slice of structs, or of pointers to them - and a current position, and keeps
+the controls bound to it in step.
+
+```go
+type Customer struct {
+    Name   string
+    Credit float64
+    Active bool
+}
+
+mf.bsCustomers = goforms.NewBindingSource()
+
+mf.grdCustomers.SetColumnDataPropertyName(0, "Name")    // which field a column shows
+mf.grdCustomers.SetColumnDataPropertyName(1, "Credit")
+mf.grdCustomers.SetDataSource(mf.bsCustomers)           // one row per record
+
+mf.lstCustomers.SetDataSource(mf.bsCustomers)           // one item per record...
+mf.lstCustomers.SetDisplayMember("Name")                // ...showing its Name
+
+mf.bsCustomers.Bind(mf.txtName, "Text", "Name")         // the current record's fields
+mf.bsCustomers.Bind(mf.chkActive, "Checked", "Active")
+
+mf.bsCustomers.SetDataSource(customers)                 // once the data is there
+```
+
+Selecting a row or an item moves the position, and moving it - `MoveNext`,
+`SetPosition` - selects it. An edited cell or a typed-in TextBox writes the
+field back into the record, converted to its type; a cell whose text does not
+convert is put back. Fields are reached by name, so only exported ones can be
+shown. A change made to the slice in code shows after `ResetBindings()` (or
+`SetDataSource` with the new slice), as in WinForms.
+
+`Bind` takes `Text` (TextBox, MaskedTextBox, RichTextBox, Label, LinkLabel),
+`Checked` (CheckBox, RadioButton) and `Value` (NumericUpDown, TrackBar). A grid
+with no `DataPropertyName` on any column shows the field with each column's
+title.
+
 ## Components without a visual presence
 
 | Type | WinForms | Notes |
 |---|---|---|
 | `Timer` | Timer | `NewTimer(ms)`, `Start()`, `Stop()`; ticks coalesce like `WM_TIMER` |
 | `ToolTip` | ToolTip | `SetToolTip(control, text)` |
+| `BindingSource` | BindingSource | records and a position; see Data binding above |
 | `ImageList` | ImageList | a named set of images |
 | `RadioButtonGroup` | (implicit in WinForms) | makes a set of radio buttons exclusive |
 

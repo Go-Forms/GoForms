@@ -13,6 +13,8 @@ type ListBox struct {
 	items                []string
 	selected             int // -1 = none, mirrors ListBox.SelectedIndex
 	SelectedIndexChanged Event[EventArgs]
+	// binding is the BindingSource the items come from, if any.
+	binding *listBinding
 }
 
 // ListBox is a plain widget.List, with no wrapper widget of its own: the

@@ -7,6 +7,8 @@ type ComboBox struct {
 	ControlBase
 	w                    *widget.Select
 	SelectedIndexChanged Event[EventArgs]
+	// binding is the BindingSource the items come from, if any.
+	binding *listBinding
 }
 
 // NewComboBox mirrors `new ComboBox { Items = { ... } }`.

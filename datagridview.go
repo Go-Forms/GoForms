@@ -127,6 +127,10 @@ type GridColumn struct {
 	// visible column; a `Visible bool` would make every hand-built column
 	// disappear by default.
 	Hidden bool
+	// DataPropertyName mirrors DataGridViewColumn.DataPropertyName: the field
+	// of a record this column shows once the grid is bound to a
+	// BindingSource (see binding.go).
+	DataPropertyName string
 }
 
 // GridCellEventArgs mirrors DataGridViewCellEventArgs: which cell an event
@@ -154,6 +158,9 @@ type GridCellValueEventArgs struct {
 type DataGridView struct {
 	ControlBase
 	w *widget.Table
+
+	// source is the BindingSource the rows come from, if any.
+	source *BindingSource
 
 	columns []*GridColumn
 	rows    [][]string

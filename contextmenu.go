@@ -20,6 +20,31 @@ func NewMenuItem(text string) *MenuItem {
 	return &MenuItem{Text: text, Enabled: true}
 }
 
+// OnClick wires a handler to the item's Click and returns the item, so a
+// menu can be written as one expression - which is how the designer writes
+// it:
+//
+//	goforms.NewMenuItem("Open").OnClick(mf.mnuOpen_Click)
+func (m *MenuItem) OnClick(h EventHandler[EventArgs]) *MenuItem {
+	m.Click.Handle(h)
+	return m
+}
+
+// Add appends sub-items and returns the item, mirroring
+// `item.DropDownItems.AddRange(...)`:
+//
+//	goforms.NewMenuItem("Recent").Add(goforms.NewMenuItem("a.txt"))
+func (m *MenuItem) Add(items ...*MenuItem) *MenuItem {
+	m.Children = append(m.Children, items...)
+	return m
+}
+
+// SetEnabled mirrors ToolStripMenuItem.Enabled and returns the item.
+func (m *MenuItem) SetEnabled(on bool) *MenuItem {
+	m.Enabled = on
+	return m
+}
+
 // NewMenuSeparator creates a visual separator between items.
 func NewMenuSeparator() *MenuItem {
 	return &MenuItem{Separator: true}
