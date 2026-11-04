@@ -107,6 +107,7 @@ Visual Studio:
 | Delete | `Del`, or the button at the bottom of Properties |
 | Undo / redo | `Ctrl+Z` / `Ctrl+Y` - a step covers both files of the form |
 | Up a level | `Esc`: the container, then the form |
+| Unwire an event | ✕ beside it in Events - the method stays in the code |
 | Reparent | drag onto a container, or use the **Parent** picker |
 | Rename | the **Name** box - renames the field, every reference, and the handler |
 | Resize the form | drag the handle at its bottom-right corner |
@@ -129,6 +130,33 @@ write the calls by hand:
 Rows can be added, renamed, reordered by dragging and deleted. For a ToolStrip
 button, the ⚡ button creates the handler method - a bare `func()`, which is
 what `AddButton` takes - and → jumps to it afterwards.
+
+## Menus, tool tips, data binding, pictures
+
+These are components: they land on the tray below the form.
+
+- **MenuStrip** and **ContextMenu** - their items are a tree in the property
+  panel, each with a click handler (⚡ writes the stub), ✓ to disable it and
+  separators; the designer writes the whole menu as one `NewMenuStrip(...)` /
+  `NewContextMenu(...)` expression. The form's MenuStrip is its menu bar,
+  drawn above the canvas; a control's **contextMenu** property names a
+  ContextMenu.
+- **ToolTip** - every control gets a "ToolTip on toolTip1" box, written as
+  `mf.toolTip1.SetToolTip(mf.btn, "...")` in the control's block.
+- **BindingSource** - a grid's, a list's or a combo box's **dataSource**, a
+  list's **displayMember**, a grid column's field, and the **(DataBindings)**
+  group of a TextBox, CheckBox, NumericUpDown and the like. The smart tag of a
+  grid makes its columns from a struct of the project. Give it the records in
+  your code: `mf.bindingSource1.SetDataSource(customers)`.
+- **Pictures** - **…** beside a PictureBox's `image` or the form's `icon`
+  copies the file into the form's `resources/` folder and embeds it:
+
+  ```go
+  //go:embed resources/logo.png
+  var picLogoImage []byte
+  ...
+  mf.picLogo.LoadBytes("logo.png", picLogoImage)
+  ```
 
 ## Containers and their parts
 
