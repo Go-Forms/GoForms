@@ -14,21 +14,21 @@ import (
 // goldenGridCase is one grid configuration and the widths/heights GoForms
 // computes for it.
 type goldenGridCase struct {
-	Name        string      `json:"name"`
-	Cols        []string    `json:"cols"`
-	Rows        [][]string  `json:"rows"`
-	Width       float32     `json:"width"`
-	ColumnsMode string      `json:"columnsMode"`
-	RowsMode    string      `json:"rowsMode"`
-	RowHeight   float32     `json:"rowHeight"`
-	ScrollBars  string      `json:"scrollBars"`
+	Name        string     `json:"name"`
+	Cols        []string   `json:"cols"`
+	Rows        [][]string `json:"rows"`
+	Width       float32    `json:"width"`
+	ColumnsMode string     `json:"columnsMode"`
+	RowsMode    string     `json:"rowsMode"`
+	RowHeight   float32    `json:"rowHeight"`
+	ScrollBars  string     `json:"scrollBars"`
 	// Modes and Fixed are per-column sizing, set after the grid-wide mode:
 	// SetColumnSizeMode, and SetColumnWidth for a fixed column.
-	Modes       []string    `json:"modes,omitempty"`
-	Fixed       []float32   `json:"fixed,omitempty"`
-	Widths      []float32   `json:"widths"`
-	RowHeights  []float32   `json:"rowHeights"`
-	Measured    [][]float64 `json:"measured"`
+	Modes      []string    `json:"modes,omitempty"`
+	Fixed      []float32   `json:"fixed,omitempty"`
+	Widths     []float32   `json:"widths"`
+	RowHeights []float32   `json:"rowHeights"`
+	Measured   [][]float64 `json:"measured"`
 }
 
 // goldenGridFile is the whole fixture the JavaScript side is checked against.
