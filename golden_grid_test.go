@@ -22,6 +22,10 @@ type goldenGridCase struct {
 	RowsMode    string      `json:"rowsMode"`
 	RowHeight   float32     `json:"rowHeight"`
 	ScrollBars  string      `json:"scrollBars"`
+	// Modes and Fixed are per-column sizing, set after the grid-wide mode:
+	// SetColumnSizeMode, and SetColumnWidth for a fixed column.
+	Modes       []string    `json:"modes,omitempty"`
+	Fixed       []float32   `json:"fixed,omitempty"`
 	Widths      []float32   `json:"widths"`
 	RowHeights  []float32   `json:"rowHeights"`
 	Measured    [][]float64 `json:"measured"`
@@ -97,6 +101,24 @@ func TestGoldenGridWidths(t *testing.T) {
 			RowsMode: "SizeFixed", RowHeight: 30,
 		},
 		{
+			Name:  "per-column modes: a fixed id, a filling name, a fitted total",
+			Cols:  []string{"ID", "Customer", "Total"},
+			Rows:  [][]string{{"1001", "Acme Corporation", "$1,240.00"}},
+			Width: 500, ColumnsMode: "SizeFixed", ScrollBars: "ScrollBarsVertical",
+			RowsMode: "SizeFixed", RowHeight: 28,
+			Modes: []string{"SizeFixed", "SizeFill", "SizeToContent"},
+			Fixed: []float32{60, 0, 0},
+		},
+		{
+			Name:  "two fill columns share the slack; a narrow fixed one is clamped",
+			Cols:  []string{"A", "B", "C"},
+			Rows:  [][]string{{"x", "y", "z"}},
+			Width: 400, ColumnsMode: "SizeFill", ScrollBars: "ScrollBarsNone",
+			RowsMode: "SizeFixed", RowHeight: 30,
+			Modes: []string{"SizeFixed", "", ""},
+			Fixed: []float32{20, 0, 0},
+		},
+		{
 			Name:  "auto row heights with multi-line cells",
 			Cols:  []string{"A", "B"},
 			Rows:  [][]string{{"one", "two"}, {"three\nlines\nhere", "x"}},
@@ -118,6 +140,16 @@ func TestGoldenGridWidths(t *testing.T) {
 		}
 		g := NewDataGridViewColumns(cols)
 		g.SetScrollBars(gridScrollBars[c.ScrollBars])
+		for j, f := range c.Fixed {
+			if f > 0 {
+				g.SetColumnWidth(j, f)
+			}
+		}
+		for j, m := range c.Modes {
+			if m != "" {
+				g.SetColumnSizeMode(j, gridModes[m])
+			}
+		}
 		g.rowHeight = c.RowHeight
 		g.rowMode = gridModes[c.RowsMode]
 		for _, row := range c.Rows {
